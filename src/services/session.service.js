@@ -1,3 +1,4 @@
+import { functionsEnabled } from '../config/firebase.js';
 import { loadOwnPermissions, loadUserProfile } from '../repositories/session.repository.js';
 import { getFirebaseServices } from './firebase.service.js';
 
@@ -25,11 +26,13 @@ export function clearSession() {
 }
 
 export async function recordLogin() {
+  if (!functionsEnabled) return { data: { skipped: true } };
   const { functions, functionsSdk } = await getFirebaseServices();
   return functionsSdk.httpsCallable(functions, 'recordSessionLogin')({});
 }
 
 export async function recordLogout() {
+  if (!functionsEnabled) return { data: { skipped: true } };
   const { functions, functionsSdk } = await getFirebaseServices();
   return functionsSdk.httpsCallable(functions, 'recordSessionLogout')({});
 }
