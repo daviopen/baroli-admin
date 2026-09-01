@@ -91,7 +91,7 @@ jobs:
           set -euo pipefail
           BASE_URL="https://${FIREBASE_PROJECT_ID}.web.app"
           for attempt in 1 2 3 4 5; do
-            curl --fail --silent --show-error --no-cache \
+            curl --fail --silent --show-error \
               -H 'Cache-Control: no-cache' \
               "${BASE_URL}/config/runtime-config.js?commit=${GITHUB_SHA}" \
               -o /tmp/runtime-config.js && break
@@ -118,7 +118,7 @@ jobs:
           }
           console.log('Runtime de produção validado: Firebase configurado e Functions desativadas.');
           NODE
-          curl --fail --silent --show-error --no-cache \
+          curl --fail --silent --show-error \
             -H 'Cache-Control: no-cache' \
             "${BASE_URL}/services/session.service.js?commit=${GITHUB_SHA}" \
             | grep -F "if (!functionsEnabled) return" >/dev/null
