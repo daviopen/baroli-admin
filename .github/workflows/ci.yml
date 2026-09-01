@@ -122,6 +122,12 @@ jobs:
             -H 'Cache-Control: no-cache' \
             "${BASE_URL}/services/session.service.js?commit=${GITHUB_SHA}" \
             | grep -F "if (!functionsEnabled) return" >/dev/null
+          AUTH_SOURCE="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "${BASE_URL}/features/auth/auth.js?commit=${GITHUB_SHA}")"
+          echo "$AUTH_SOURCE" | grep -F "signInWithRedirect(auth, provider)" >/dev/null
+          if echo "$AUTH_SOURCE" | grep -F "signInWithPopup(" >/dev/null; then
+            echo "Fluxo antigo de popup ainda está publicado."
+            exit 1
+          fi
           HEADERS="$(curl --fail --silent --show-error -I -H 'Cache-Control: no-cache' "${BASE_URL}/config/runtime-config.js?commit=${GITHUB_SHA}")"
           echo "$HEADERS" | grep -i '^cache-control:' | grep -Ei 'no-cache|no-store' >/dev/null
           echo "Smoke test de produção concluído."
