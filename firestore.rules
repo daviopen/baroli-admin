@@ -14,16 +14,17 @@ service cloud.firestore {
     function permissionPath(moduleName) {
       return /databases/$(database)/documents/permissions/$(request.auth.uid + '__' + moduleName);
     }
-    function hasPermission(moduleName, actionName) {
-      return isSuperAdmin() || (
-        activeUser() &&
-        exists(permissionPath(moduleName)) &&
-        get(permissionPath(moduleName)).data.userId == request.auth.uid &&
-        get(permissionPath(moduleName)).data.module == moduleName &&
-        actionName in get(permissionPath(moduleName)).data.actions
-      );
+    function permissionLevel(moduleName) {
+      return activeUser() && exists(permissionPath(moduleName))
+        ? get(permissionPath(moduleName)).data.level
+        : 'NONE';
     }
-    function canRead(moduleName) { return hasPermission(moduleName, 'READ'); }
+    function canRead(moduleName) {
+      return isSuperAdmin() || permissionLevel(moduleName) in ['READ', 'EDIT'];
+    }
+    function canEdit(moduleName) {
+      return isSuperAdmin() || permissionLevel(moduleName) == 'EDIT';
+    }
     function ownLastAccessUpdate(userId) {
       return supportedProvider()
         && request.auth.uid == userId
