@@ -25,6 +25,11 @@ function validateName(name) {
   return normalized;
 }
 
+function normalizeRole(role) {
+  const normalized = String(role || 'USER').trim().toUpperCase();
+  return ['USER', 'ADMIN', 'SUPER_ADMIN'].includes(normalized) ? normalized : 'USER';
+}
+
 export function getUserManagementCapabilities(session) {
   return Object.freeze({
     canCreate: hasPermission(session, 'users', 'CREATE'),
@@ -36,7 +41,6 @@ export function getUserManagementCapabilities(session) {
 export function filterUsers(users, filters = {}) {
   const search = normalizeText(filters.search);
   const status = String(filters.status || 'ALL').toUpperCase();
-  const role = String(filters.role || 'ALL').toUpperCase();
 
   return users.filter((user) => {
     const matchesSearch = !search
@@ -44,8 +48,7 @@ export function filterUsers(users, filters = {}) {
       || normalizeText(user.email).includes(search);
     const matchesStatus = status === 'ALL'
       || (status === 'ACTIVE' ? user.active === true : user.active !== true);
-    const matchesRole = role === 'ALL' || String(user.role || 'USER').toUpperCase() === role;
-    return matchesSearch && matchesStatus && matchesRole;
+    return matchesSearch && matchesStatus;
   });
 }
 
@@ -62,12 +65,14 @@ export function getDefaultUserPermissionLevels() {
   return { ...DEFAULT_USER_PERMISSION_LEVELS };
 }
 
-export async function saveUserPermissionLevels(userId, permissionLevels, session) {
+export async function saveUserAccess(userId, role, permissionLevels, session) {
   if (!isSuperAdmin(session?.profile)) {
-    throw new Error('Somente SUPER_ADMIN pode alterar permissões.');
+    throw new Error('Somente SUPER_ADMIN pode alterar perfis e permissões.');
   }
-  return callAdminFunction('adminSetPermissions', {
+  if (!userId) throw new Error('Usuário inválido.');
+  return callAdminFunction('adminUpdateUser', {
     userId,
+    role: normalizeRole(role),
     permissions: buildPermissionPayload(permissionLevels)
   });
 }
@@ -78,8 +83,7 @@ export async function createManagedUser(input, session) {
 
   const name = validateName(input.name);
   const email = validateEmail(input.email);
-  const role = String(input.role || 'USER').toUpperCase();
-  const request = { name, email, role };
+  const request = { name, email, role: 'USER' };
 
   if (input.permissionLevels && capabilities.canManagePermissions) {
     request.permissions = buildPermissionPayload(input.permissionLevels);
@@ -106,7 +110,6 @@ export async function updateManagedUser(userId, input, session) {
   const request = {
     userId,
     name: validateName(input.name),
-    role: String(input.role || 'USER').toUpperCase(),
     active: input.active !== false
   };
   if (input.permissionLevels && capabilities.canManagePermissions) {
