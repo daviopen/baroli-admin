@@ -4,6 +4,7 @@ import { hasFirebaseConfig } from './config/firebase.js';
 import { renderAudit } from './features/audit/view.js';
 import { friendlyAuthError, sendPasswordReset, signInWithEmail, signInWithGoogle, signOutSafely, watchAuth } from './features/auth/auth.js';
 import { renderDashboard } from './features/dashboard/view.js';
+import { renderLeaseTermination } from './features/lease-termination/view.js';
 import { renderPermissions } from './features/permissions/view.js';
 import { renderUsers } from './features/users/view.js';
 
@@ -19,7 +20,8 @@ const routes = {
   dashboard: async () => { content.innerHTML = renderDashboard(session); },
   users: () => renderUsers(content),
   permissions: () => renderPermissions(content),
-  audit: () => renderAudit(content)
+  audit: () => renderAudit(content),
+  leaseTermination: () => renderLeaseTermination(content)
 };
 
 function showLogin(message = '') {
