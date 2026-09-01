@@ -1,0 +1,29 @@
+name: Diagnose Auth User
+
+on:
+  push:
+    branches: [diagnose/davitads-google-login]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Functions dependencies
+        run: npm install --ignore-scripts
+        working-directory: functions
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BAROLI_ADMIN }}
+      - name: Diagnose davitads Google login
+        run: node scripts/diagnose-auth-user.js
+        working-directory: functions
