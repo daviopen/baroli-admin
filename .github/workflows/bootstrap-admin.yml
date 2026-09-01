@@ -1,0 +1,38 @@
+name: Bootstrap First Admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Email do primeiro administrador
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      TARGET_EMAIL: ${{ inputs.email }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Functions dependencies
+        run: npm install --ignore-scripts
+        working-directory: functions
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BAROLI_ADMIN }}
+      - name: Hash target email
+        shell: bash
+        run: |
+          node -e "const c=require('node:crypto'); const e=String(process.env.TARGET_EMAIL||'').trim().toLowerCase(); if(!e.includes('@')) process.exit(2); console.log('TARGET_EMAIL_SHA256='+c.createHash('sha256').update(e).digest('hex'))" >> "$GITHUB_ENV"
+      - name: Bootstrap first administrator
+        run: node scripts/bootstrap-super-admin.cjs
+        working-directory: functions
