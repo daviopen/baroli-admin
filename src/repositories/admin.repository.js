@@ -1,3 +1,4 @@
+import { functionsEnabled } from '../config/firebase.js';
 import { getFirebaseServices } from '../services/firebase.service.js';
 
 export async function listUsers() {
@@ -29,6 +30,9 @@ export async function getUserPermissions(userId) {
 }
 
 export async function callAdminFunction(name, payload) {
+  if (!functionsEnabled) {
+    throw new Error('Backend administrativo ainda não está habilitado. Ative e publique as Cloud Functions para executar esta ação.');
+  }
   const { functions, functionsSdk } = await getFirebaseServices();
   const callable = functionsSdk.httpsCallable(functions, name);
   const response = await callable(payload);
