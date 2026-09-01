@@ -20,9 +20,12 @@ const firebaseConfig = {
   measurementId: process.env.FIREBASE_MEASUREMENT_ID ?? ''
 };
 
+const functionsEnabled = /^(1|true|yes)$/i.test(process.env.FIREBASE_FUNCTIONS_ENABLED ?? 'false');
+
 const runtime = {
   firebase: firebaseConfig,
-  functionsRegion: process.env.FIREBASE_FUNCTIONS_REGION ?? 'southamerica-east1'
+  functionsRegion: process.env.FIREBASE_FUNCTIONS_REGION ?? 'southamerica-east1',
+  functionsEnabled
 };
 
 await writeFile(
