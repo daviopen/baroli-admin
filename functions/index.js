@@ -12,6 +12,7 @@ const ROLES = new Set(['USER', 'ADMIN', 'SUPER_ADMIN']);
 const ACTIONS = new Set(['READ', 'CREATE', 'UPDATE', 'DELETE']);
 const LEVELS = new Set(['NONE', 'READ', 'EDIT']);
 const MODULE_PATTERN = /^[a-z][a-z0-9_-]{1,48}$/;
+const DEFAULT_USER_PERMISSIONS = Object.freeze({ dashboard: 'READ' });
 
 function cleanString(value, maxLength) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
@@ -149,7 +150,7 @@ exports.adminCreateUser = onCall({ region: REGION }, async (request) => {
   const permissionInput = request.data?.permissions;
   if (!name || !email || !email.includes('@')) throw new HttpsError('invalid-argument', 'Nome e e-mail são obrigatórios.');
 
-  let permissions = null;
+  let permissions = { ...DEFAULT_USER_PERMISSIONS };
   if (permissionInput != null) {
     requireSuperAdmin(caller);
     permissions = normalizePermissionsPayload(permissionInput);
@@ -179,12 +180,10 @@ exports.adminCreateUser = onCall({ region: REGION }, async (request) => {
       after: profile,
       initialPermissions: permissions
     }));
-    if (permissions) {
-      batch.set(db.collection('auditLogs').doc(), auditData(caller, 'PERMISSIONS_UPDATED', 'PERMISSIONS', authUser.uid, {
-        after: permissions,
-        source: 'USER_CREATED'
-      }));
-    }
+    batch.set(db.collection('auditLogs').doc(), auditData(caller, 'PERMISSIONS_UPDATED', 'PERMISSIONS', authUser.uid, {
+      after: permissions,
+      source: 'USER_CREATED'
+    }));
     await batch.commit();
     return { uid: authUser.uid };
   } catch (error) {
