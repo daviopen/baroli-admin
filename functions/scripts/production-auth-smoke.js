@@ -71,7 +71,7 @@ async function assertAnonymousProfileBlocked() {
 }
 
 async function assertActiveGate(idToken) {
-  const probePath = 'settings/__production_auth_smoke__';
+  const probePath = 'settings/production-auth-smoke';
 
   const activeResponse = await fetchFirestore(probePath, idToken);
   if (![200, 404].includes(activeResponse.status)) {
