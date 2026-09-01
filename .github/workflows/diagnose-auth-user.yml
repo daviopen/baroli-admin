@@ -27,3 +27,30 @@ jobs:
       - name: Diagnose davitads Google login
         run: node scripts/diagnose-auth-user.js
         working-directory: functions
+      - name: Diagnose Google provider configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(gcloud auth application-default print-access-token)"
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "https://identitytoolkit.googleapis.com/admin/v2/projects/${FIREBASE_PROJECT_ID}/defaultSupportedIdpConfigs/google.com" \
+            -o /tmp/google-provider.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const config = JSON.parse(fs.readFileSync('/tmp/google-provider.json', 'utf8'));
+          console.log(JSON.stringify({
+            name: config.name,
+            enabled: config.enabled,
+            clientId: config.clientId || null
+          }, null, 2));
+          NODE
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "https://identitytoolkit.googleapis.com/admin/v2/projects/${FIREBASE_PROJECT_ID}/config" \
+            -o /tmp/auth-config.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const config = JSON.parse(fs.readFileSync('/tmp/auth-config.json', 'utf8'));
+          console.log(JSON.stringify({ authorizedDomains: config.authorizedDomains || [] }, null, 2));
+          NODE
