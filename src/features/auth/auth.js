@@ -1,21 +1,30 @@
 import { getFirebaseServices } from '../../services/firebase.service.js';
 import { clearSession, hydrateSession, recordLogin, recordLogout } from '../../services/session.service.js';
 
+async function useLocalPersistence(auth, authSdk) {
+  await authSdk.setPersistence(auth, authSdk.browserLocalPersistence);
+}
+
 export async function signInWithGoogle() {
   const { auth, authSdk } = await getFirebaseServices();
+  await useLocalPersistence(auth, authSdk);
   const provider = new authSdk.GoogleAuthProvider();
+  provider.addScope('profile');
+  provider.addScope('email');
   provider.setCustomParameters({ prompt: 'select_account' });
-  return authSdk.signInWithRedirect(auth, provider);
+  return authSdk.signInWithPopup(auth, provider);
 }
 
 export async function signInWithEmail(email, password) {
   const { auth, authSdk } = await getFirebaseServices();
-  return authSdk.signInWithEmailAndPassword(auth, email, password);
+  await useLocalPersistence(auth, authSdk);
+  return authSdk.signInWithEmailAndPassword(auth, String(email || '').trim(), password);
 }
 
 export async function sendPasswordReset(email) {
   const { auth, authSdk } = await getFirebaseServices();
-  return authSdk.sendPasswordResetEmail(auth, email);
+  auth.languageCode = 'pt-BR';
+  return authSdk.sendPasswordResetEmail(auth, String(email || '').trim());
 }
 
 export async function signOutSafely() {
@@ -32,6 +41,8 @@ export async function signOutSafely() {
 
 export async function watchAuth(onReady, onSignedOut, onBlocked) {
   const { auth, authSdk } = await getFirebaseServices();
+  auth.useDeviceLanguage();
+
   return authSdk.onAuthStateChanged(auth, async (user) => {
     if (!user) {
       clearSession();
@@ -39,24 +50,25 @@ export async function watchAuth(onReady, onSignedOut, onBlocked) {
       return;
     }
 
-    let session;
+    let hydrated;
     try {
-      session = await hydrateSession(user);
+      hydrated = await hydrateSession(user);
     } catch (error) {
       clearSession();
-      await authSdk.signOut(auth);
+      await authSdk.signOut(auth).catch(() => null);
       onBlocked(error);
       return;
     }
 
-    try {
-      await recordLogin();
-    } catch (error) {
-      // Auditoria de sessão é best-effort: indisponibilidade temporária das
-      // Cloud Functions ou da rede não pode invalidar uma autenticação válida.
-      console.warn('Não foi possível registrar a auditoria de login.', error);
+    // Assim como no louvor-ide, último acesso é best-effort e não participa
+    // da decisão de autenticação/autorização. Evita escrita repetida quando a
+    // sessão já foi hidratada nesta aba.
+    if (!hydrated.hydratedFromCache) {
+      void recordLogin().catch((error) => {
+        console.warn('Não foi possível registrar o último acesso do usuário.', error);
+      });
     }
 
-    onReady(session);
+    onReady(hydrated.session);
   });
 }
