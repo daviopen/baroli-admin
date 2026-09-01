@@ -145,11 +145,9 @@ exports.adminCreateUser = onCall({ region: REGION }, async (request) => {
 
   const name = cleanString(request.data?.name, 160);
   const email = cleanString(request.data?.email, 320).toLowerCase();
-  const role = request.data?.role ?? 'USER';
+  const role = 'USER';
   const permissionInput = request.data?.permissions;
   if (!name || !email || !email.includes('@')) throw new HttpsError('invalid-argument', 'Nome e e-mail são obrigatórios.');
-  if (!ROLES.has(role)) throw new HttpsError('invalid-argument', 'Perfil inválido.');
-  if (role === 'SUPER_ADMIN') requireSuperAdmin(caller);
 
   let permissions = null;
   if (permissionInput != null) {
@@ -218,12 +216,11 @@ exports.adminUpdateUser = onCall({ region: REGION }, async (request) => {
   if (typeof request.data?.active === 'boolean') after.active = request.data.active;
   if (typeof request.data?.role === 'string') {
     if (!ROLES.has(request.data.role)) throw new HttpsError('invalid-argument', 'Perfil inválido.');
+    if (request.data.role !== before.role) requireSuperAdmin(caller);
     after.role = request.data.role;
   }
   if (!after.name) throw new HttpsError('invalid-argument', 'Nome obrigatório.');
 
-  const changesSuperAdminBoundary = before.role === 'SUPER_ADMIN' || after.role === 'SUPER_ADMIN';
-  if (changesSuperAdminBoundary && before.role !== after.role) requireSuperAdmin(caller);
   if (before.role === 'SUPER_ADMIN' && before.active !== after.active) requireSuperAdmin(caller);
   await assertCanDemoteOrDeactivate(userId, before, after);
 
