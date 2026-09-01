@@ -1,0 +1,21 @@
+{
+  "name": "baroli-admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Base administrativa da Baroli Imóveis com Firebase, autenticação, usuários, permissões e auditoria.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "npm run build && firebase emulators:start --only hosting,firestore,functions",
+    "serve": "npm run build && firebase emulators:start --only hosting",
+    "test": "node --test",
+    "check": "npm run build && npm test",
+    "deploy": "npm run build && firebase deploy"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.28.2"
+  }
+}
