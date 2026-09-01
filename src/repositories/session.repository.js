@@ -14,7 +14,10 @@ export async function loadOwnPermissions(uid) {
     MODULES.map(async ({ id }) => {
       const ref = firestoreSdk.doc(db, 'permissions', `${uid}__${id}`);
       const snap = await firestoreSdk.getDoc(ref);
-      return [id, snap.exists() ? (snap.data().actions ?? []) : []];
+      if (!snap.exists()) return [id, 'NONE'];
+      const data = snap.data();
+      const level = String(data.level || '').toUpperCase();
+      return [id, ['READ', 'EDIT'].includes(level) ? level : 'NONE'];
     })
   );
   return Object.fromEntries(entries);
