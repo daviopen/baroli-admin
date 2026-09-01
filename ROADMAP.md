@@ -30,7 +30,7 @@
 - [ ] Listagem com filtros e paginação
 - [x] Cadastro de usuário via Cloud Function/Admin SDK
 - [ ] Tela de consulta detalhada
-- [ ] Edição completa de nome/perfil pela UI
+- [x] Edição completa de nome/perfil pela UI
 - [x] Ativar/desativar
 - [x] Perfil USER / ADMIN / SUPER_ADMIN no modelo/backend
 - [x] Bootstrap controlado do primeiro SUPER_ADMIN
@@ -42,6 +42,8 @@
 - [x] Leitura/gravação de permissões por usuário
 - [x] READ / CREATE / UPDATE / DELETE
 - [x] Matriz visual de permissões
+- [x] Modelo simplificado de UI Sem acesso / Leitura / Edição alinhado ao `louvor-ide`
+- [x] Permissões integradas ao cadastro/edição de usuários para SUPER_ADMIN
 - [x] Carregamento das permissões uma vez por sessão
 - [x] Validação nas regras do Firestore
 - [x] Gravação privilegiada via backend
