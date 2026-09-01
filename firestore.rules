@@ -14,16 +14,34 @@ service cloud.firestore {
     function permissionPath(moduleName) {
       return /databases/$(database)/documents/permissions/$(request.auth.uid + '__' + moduleName);
     }
-    function permissionLevel(moduleName) {
-      return activeUser() && exists(permissionPath(moduleName))
-        ? get(permissionPath(moduleName)).data.level
-        : 'NONE';
+    function ownPermissionSlot(permissionId) {
+      return activeUser() && permissionId in [
+        request.auth.uid + '__dashboard',
+        request.auth.uid + '__users',
+        request.auth.uid + '__permissions',
+        request.auth.uid + '__audit',
+        request.auth.uid + '__owners',
+        request.auth.uid + '__tenants',
+        request.auth.uid + '__properties',
+        request.auth.uid + '__leases',
+        request.auth.uid + '__inspections',
+        request.auth.uid + '__maintenance',
+        request.auth.uid + '__finance',
+        request.auth.uid + '__documents'
+      ];
+    }
+    function explicitPermission(moduleName, acceptedLevels) {
+      return activeUser()
+        && exists(permissionPath(moduleName))
+        && get(permissionPath(moduleName)).data.userId == request.auth.uid
+        && get(permissionPath(moduleName)).data.module == moduleName
+        && get(permissionPath(moduleName)).data.level in acceptedLevels;
     }
     function canRead(moduleName) {
-      return isSuperAdmin() || permissionLevel(moduleName) in ['READ', 'EDIT'];
+      return isSuperAdmin() || explicitPermission(moduleName, ['READ', 'EDIT']);
     }
     function canEdit(moduleName) {
-      return isSuperAdmin() || permissionLevel(moduleName) == 'EDIT';
+      return isSuperAdmin() || explicitPermission(moduleName, ['EDIT']);
     }
     function ownLastAccessUpdate(userId) {
       return supportedProvider()
@@ -34,16 +52,14 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if (supportedProvider() && request.auth.uid == userId) || canRead('users');
-      allow list: if canRead('users');
+      allow get: if (supportedProvider() && request.auth.uid == userId) || canRead('users') || canRead('permissions');
+      allow list: if canRead('users') || canRead('permissions');
       allow update: if ownLastAccessUpdate(userId);
       allow create, delete: if false;
     }
 
     match /permissions/{permissionId} {
-      allow get: if isSuperAdmin() || canRead('permissions') || (
-        activeUser() && permissionId.matches('^' + request.auth.uid + '__.*$')
-      );
+      allow get: if isSuperAdmin() || canRead('permissions') || ownPermissionSlot(permissionId);
       allow list: if isSuperAdmin() || canRead('permissions');
       allow create, update, delete: if false;
     }
