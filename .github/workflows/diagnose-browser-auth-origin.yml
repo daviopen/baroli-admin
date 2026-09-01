@@ -1,0 +1,57 @@
+name: Diagnose Browser Auth Origin
+
+on:
+  push:
+    branches: [diagnose/browser-auth-origin]
+
+permissions:
+  contents: read
+
+jobs:
+  browser-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Validate canonical origin and Google popup bootstrap
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage();
+            const consoleMessages = [];
+            page.on('console', message => consoleMessages.push(`${message.type()}: ${message.text()}`));
+
+            await page.goto('https://baroli-admin.web.app/login', { waitUntil: 'networkidle', timeout: 30000 });
+            const finalUrl = page.url();
+            console.log(`Final URL after canonicalization: ${finalUrl}`);
+            if (!finalUrl.startsWith('https://baroli-admin.firebaseapp.com/login')) {
+              throw new Error(`Expected firebaseapp.com canonical origin, got ${finalUrl}`);
+            }
+
+            const popupPromise = page.waitForEvent('popup', { timeout: 15000 });
+            await page.click('#google-login');
+            const popup = await popupPromise;
+            await popup.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => null);
+            const popupUrl = popup.url();
+            console.log(`Google popup URL: ${popupUrl}`);
+            if (!popupUrl) throw new Error('Google popup did not navigate.');
+
+            console.log('Console messages from app:');
+            for (const message of consoleMessages) console.log(message);
+
+            await popup.close().catch(() => null);
+            await browser.close();
+          })().catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
