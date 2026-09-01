@@ -30,9 +30,13 @@
 - [ ] Listagem com filtros e paginação
 - [x] Cadastro de usuário via Cloud Function/Admin SDK
 - [ ] Tela de consulta detalhada
-- [ ] Edição completa de nome/perfil pela UI
-- [x] Ativar/desativar
+- [x] Edição de nome/status pela UI
+- [x] Permissões integradas ao cadastro/edição para SUPER_ADMIN, no modelo do `louvor-ide`
+- [x] Ativar/desativar preservando histórico
+- [x] Redefinição de senha via Firebase Authentication
+- [x] Exibição de último acesso
 - [x] Perfil USER / ADMIN / SUPER_ADMIN no modelo/backend
+- [x] Perfil administrativo gerenciado no fluxo de Permissões
 - [x] Bootstrap controlado do primeiro SUPER_ADMIN
 - [x] Proteção contra remover/desativar o último SUPER_ADMIN
 - [x] Auditoria das alterações
@@ -40,8 +44,12 @@
 ## P3 — Permissões
 - [x] Catálogo central de módulos
 - [x] Leitura/gravação de permissões por usuário
-- [x] READ / CREATE / UPDATE / DELETE
+- [x] `NONE` / `READ` / `EDIT` persistido diretamente em `permissions.level`, como no `louvor-ide`
+- [x] `EDIT` implica leitura e operações de escrita previstas no módulo
+- [x] `NONE` remove o acesso ao módulo
 - [x] Matriz visual de permissões
+- [x] Perfil administrativo e permissões tratados como responsabilidades distintas
+- [x] Revisão/diff antes de salvar alterações administrativas
 - [x] Carregamento das permissões uma vez por sessão
 - [x] Validação nas regras do Firestore
 - [x] Gravação privilegiada via backend

@@ -1,0 +1,53 @@
+.users-toolbar--louvor {
+  grid-template-columns: minmax(260px, 2fr) minmax(170px, 1fr) auto;
+}
+
+.users-table--louvor {
+  min-width: 760px;
+}
+
+.permissions-fieldset {
+  margin: 0;
+  min-width: 0;
+}
+
+.permissions-fieldset legend {
+  padding: 0 8px 0 0;
+  font-weight: 800;
+  font-size: 17px;
+}
+
+.permissions-fieldset > .muted-text {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 800px) {
+  .users-toolbar--louvor {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .users-toolbar--louvor .users-search,
+  .users-toolbar--louvor .users-count {
+    grid-column: 1 / -1;
+  }
+
+  .users-row-actions .link-button {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 560px) {
+  .users-toolbar--louvor {
+    grid-template-columns: 1fr;
+  }
+
+  .users-toolbar--louvor > * {
+    grid-column: 1;
+  }
+
+  .permissions-grid {
+    grid-template-columns: 1fr;
+  }
+}

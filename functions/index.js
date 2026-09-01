@@ -1,3 +1,4 @@
+const { randomBytes } = require('node:crypto');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
@@ -9,7 +10,9 @@ const auth = getAuth();
 const REGION = 'southamerica-east1';
 const ROLES = new Set(['USER', 'ADMIN', 'SUPER_ADMIN']);
 const ACTIONS = new Set(['READ', 'CREATE', 'UPDATE', 'DELETE']);
+const LEVELS = new Set(['NONE', 'READ', 'EDIT']);
 const MODULE_PATTERN = /^[a-z][a-z0-9_-]{1,48}$/;
+const DEFAULT_USER_PERMISSIONS = Object.freeze({ dashboard: 'READ' });
 
 function cleanString(value, maxLength) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
@@ -33,6 +36,13 @@ function requireSuperAdmin(caller) {
   if (!isSuperAdmin(caller)) throw new HttpsError('permission-denied', 'Ação exclusiva de SUPER_ADMIN.');
 }
 
+function levelAllowsAction(level, actionName) {
+  if (!ACTIONS.has(actionName)) return false;
+  const normalized = String(level || 'NONE').toUpperCase();
+  if (normalized === 'EDIT') return true;
+  return normalized === 'READ' && actionName === 'READ';
+}
+
 async function callerHasPermission(caller, moduleName, actionName) {
   if (isSuperAdmin(caller)) return true;
   const snap = await db.collection('permissions').doc(`${caller.uid}__${moduleName}`).get();
@@ -40,13 +50,46 @@ async function callerHasPermission(caller, moduleName, actionName) {
   const permission = snap.data();
   return permission.userId === caller.uid &&
     permission.module === moduleName &&
-    Array.isArray(permission.actions) &&
-    permission.actions.includes(actionName);
+    levelAllowsAction(permission.level, actionName);
 }
 
 async function requirePermission(caller, moduleName, actionName) {
   if (!(await callerHasPermission(caller, moduleName, actionName))) {
     throw new HttpsError('permission-denied', `Permissão ${moduleName}:${actionName} obrigatória.`);
+  }
+}
+
+function normalizePermissionsPayload(permissions, { optional = false } = {}) {
+  if (permissions == null && optional) return null;
+  if (!permissions || typeof permissions !== 'object' || Array.isArray(permissions)) {
+    throw new HttpsError('invalid-argument', 'Permissões inválidas.');
+  }
+
+  const normalized = {};
+  for (const [moduleName, rawLevel] of Object.entries(permissions)) {
+    if (!MODULE_PATTERN.test(moduleName)) throw new HttpsError('invalid-argument', `Módulo inválido: ${moduleName}`);
+    const level = String(rawLevel || 'NONE').toUpperCase();
+    if (!LEVELS.has(level)) throw new HttpsError('invalid-argument', `Nível inválido em ${moduleName}.`);
+    normalized[moduleName] = level;
+  }
+  return normalized;
+}
+
+function applyPermissionsToBatch(batch, userId, permissions, actorUserId) {
+  if (!permissions) return;
+  for (const [moduleName, level] of Object.entries(permissions)) {
+    const permissionRef = db.collection('permissions').doc(`${userId}__${moduleName}`);
+    if (level === 'NONE') {
+      batch.delete(permissionRef);
+    } else {
+      batch.set(permissionRef, {
+        userId,
+        module: moduleName,
+        level,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: actorUserId
+      });
+    }
   }
 }
 
@@ -103,15 +146,19 @@ exports.adminCreateUser = onCall({ region: REGION }, async (request) => {
 
   const name = cleanString(request.data?.name, 160);
   const email = cleanString(request.data?.email, 320).toLowerCase();
-  const temporaryPassword = typeof request.data?.temporaryPassword === 'string' ? request.data.temporaryPassword : '';
-  const role = request.data?.role ?? 'USER';
+  const role = 'USER';
+  const permissionInput = request.data?.permissions;
   if (!name || !email || !email.includes('@')) throw new HttpsError('invalid-argument', 'Nome e e-mail são obrigatórios.');
-  if (temporaryPassword.length < 12) throw new HttpsError('invalid-argument', 'A senha temporária deve ter ao menos 12 caracteres.');
-  if (!ROLES.has(role)) throw new HttpsError('invalid-argument', 'Perfil inválido.');
-  if (role === 'SUPER_ADMIN') requireSuperAdmin(caller);
+
+  let permissions = { ...DEFAULT_USER_PERMISSIONS };
+  if (permissionInput != null) {
+    requireSuperAdmin(caller);
+    permissions = normalizePermissionsPayload(permissionInput);
+  }
 
   let authUser;
   try {
+    const temporaryPassword = `${randomBytes(24).toString('base64url')}aA1!`;
     authUser = await auth.createUser({ email, password: temporaryPassword, displayName: name, disabled: false });
     const now = FieldValue.serverTimestamp();
     const profile = {
@@ -128,7 +175,15 @@ exports.adminCreateUser = onCall({ region: REGION }, async (request) => {
     };
     const batch = db.batch();
     batch.create(db.collection('users').doc(authUser.uid), profile);
-    batch.set(db.collection('auditLogs').doc(), auditData(caller, 'USER_CREATED', 'USER', authUser.uid, { after: profile }));
+    applyPermissionsToBatch(batch, authUser.uid, permissions, caller.uid);
+    batch.set(db.collection('auditLogs').doc(), auditData(caller, 'USER_CREATED', 'USER', authUser.uid, {
+      after: profile,
+      initialPermissions: permissions
+    }));
+    batch.set(db.collection('auditLogs').doc(), auditData(caller, 'PERMISSIONS_UPDATED', 'PERMISSIONS', authUser.uid, {
+      after: permissions,
+      source: 'USER_CREATED'
+    }));
     await batch.commit();
     return { uid: authUser.uid };
   } catch (error) {
@@ -144,6 +199,13 @@ exports.adminUpdateUser = onCall({ region: REGION }, async (request) => {
   const userId = cleanString(request.data?.userId, 128);
   if (!userId) throw new HttpsError('invalid-argument', 'userId obrigatório.');
 
+  const permissionInput = request.data?.permissions;
+  let permissions = null;
+  if (permissionInput != null) {
+    requireSuperAdmin(caller);
+    permissions = normalizePermissionsPayload(permissionInput);
+  }
+
   const ref = db.collection('users').doc(userId);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Usuário não encontrado.');
@@ -153,12 +215,11 @@ exports.adminUpdateUser = onCall({ region: REGION }, async (request) => {
   if (typeof request.data?.active === 'boolean') after.active = request.data.active;
   if (typeof request.data?.role === 'string') {
     if (!ROLES.has(request.data.role)) throw new HttpsError('invalid-argument', 'Perfil inválido.');
+    if (request.data.role !== before.role) requireSuperAdmin(caller);
     after.role = request.data.role;
   }
   if (!after.name) throw new HttpsError('invalid-argument', 'Nome obrigatório.');
 
-  const changesSuperAdminBoundary = before.role === 'SUPER_ADMIN' || after.role === 'SUPER_ADMIN';
-  if (changesSuperAdminBoundary && before.role !== after.role) requireSuperAdmin(caller);
   if (before.role === 'SUPER_ADMIN' && before.active !== after.active) requireSuperAdmin(caller);
   await assertCanDemoteOrDeactivate(userId, before, after);
 
@@ -175,10 +236,17 @@ exports.adminUpdateUser = onCall({ region: REGION }, async (request) => {
   try {
     const batch = db.batch();
     batch.update(ref, patch);
+    applyPermissionsToBatch(batch, userId, permissions, caller.uid);
     batch.set(db.collection('auditLogs').doc(), auditData(caller, 'USER_UPDATED', 'USER', userId, {
       before,
       after: { ...after, ...patch }
     }));
+    if (permissions) {
+      batch.set(db.collection('auditLogs').doc(), auditData(caller, 'PERMISSIONS_UPDATED', 'PERMISSIONS', userId, {
+        after: permissions,
+        source: 'USER_UPDATED'
+      }));
+    }
     await batch.commit();
   } catch (error) {
     await auth.updateUser(userId, {
@@ -194,33 +262,13 @@ exports.adminSetPermissions = onCall({ region: REGION }, async (request) => {
   const caller = await getCaller(request);
   requireSuperAdmin(caller);
   const userId = cleanString(request.data?.userId, 128);
-  const permissions = request.data?.permissions;
-  if (!userId || !permissions || typeof permissions !== 'object' || Array.isArray(permissions)) {
-    throw new HttpsError('invalid-argument', 'Usuário e permissões são obrigatórios.');
-  }
+  const permissions = normalizePermissionsPayload(request.data?.permissions);
+  if (!userId) throw new HttpsError('invalid-argument', 'Usuário e permissões são obrigatórios.');
   const userSnap = await db.collection('users').doc(userId).get();
   if (!userSnap.exists) throw new HttpsError('not-found', 'Usuário não encontrado.');
 
   const batch = db.batch();
-  for (const [moduleName, rawActions] of Object.entries(permissions)) {
-    if (!MODULE_PATTERN.test(moduleName)) throw new HttpsError('invalid-argument', `Módulo inválido: ${moduleName}`);
-    if (!Array.isArray(rawActions)) throw new HttpsError('invalid-argument', `Ações inválidas para ${moduleName}.`);
-    const actions = [...new Set(rawActions)];
-    if (actions.some((action) => !ACTIONS.has(action))) throw new HttpsError('invalid-argument', `Ação inválida em ${moduleName}.`);
-
-    const permissionRef = db.collection('permissions').doc(`${userId}__${moduleName}`);
-    if (actions.length === 0) {
-      batch.delete(permissionRef);
-    } else {
-      batch.set(permissionRef, {
-        userId,
-        module: moduleName,
-        actions,
-        updatedAt: FieldValue.serverTimestamp(),
-        updatedBy: caller.uid
-      });
-    }
-  }
+  applyPermissionsToBatch(batch, userId, permissions, caller.uid);
   batch.set(db.collection('auditLogs').doc(), auditData(caller, 'PERMISSIONS_UPDATED', 'PERMISSIONS', userId, { after: permissions }));
   await batch.commit();
   return { ok: true };

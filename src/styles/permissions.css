@@ -1,0 +1,140 @@
+.permissions-user-picker {
+  width: min(560px, 100%);
+}
+
+.permissions-status {
+  min-height: 24px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.permissions-empty-card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 42px 20px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.permissions-empty-card h3,
+.permissions-empty-card p {
+  margin: 0;
+}
+
+.permissions-empty-icon {
+  font-size: 28px;
+}
+
+.permissions-user-card {
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.permissions-user-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.permissions-section-heading {
+  display: grid;
+  gap: 4px;
+  padding: 18px 18px 10px;
+}
+
+.permissions-section-heading strong {
+  font-size: 15px;
+}
+
+.permissions-section-heading span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.permissions-access-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 18px 18px;
+}
+
+.permissions-access-grid--role {
+  grid-template-columns: minmax(240px, 360px);
+}
+
+.permissions-access-grid .permission-card small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.permissions-user-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.permissions-user-footer span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.permissions-diff {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.45;
+}
+
+.permissions-review-dialog {
+  width: min(620px, calc(100vw - 32px));
+}
+
+@media (max-width: 980px) {
+  .permissions-access-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .permissions-user-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .permissions-user-footer .primary {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 560px) {
+  .permissions-access-grid,
+  .permissions-access-grid--role {
+    grid-template-columns: 1fr;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .permissions-user-header,
+  .permissions-section-heading,
+  .permissions-user-footer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}

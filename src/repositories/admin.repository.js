@@ -26,7 +26,10 @@ export async function getUserPermissions(userId) {
     firestoreSdk.where('userId', '==', userId)
   );
   const snap = await firestoreSdk.getDocs(q);
-  return Object.fromEntries(snap.docs.map((doc) => [doc.data().module, doc.data().actions ?? []]));
+  return Object.fromEntries(snap.docs.map((doc) => {
+    const data = doc.data();
+    return [data.module, String(data.level || 'NONE').toUpperCase()];
+  }));
 }
 
 export async function callAdminFunction(name, payload) {
