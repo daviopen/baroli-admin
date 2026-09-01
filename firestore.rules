@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function supportedProvider() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider in ['google.com', 'password'];
+    }
+    function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
+    function hasProfile() { return supportedProvider() && exists(userPath(request.auth.uid)); }
+    function profile() { return get(userPath(request.auth.uid)); }
+    function activeUser() { return hasProfile() && profile().data.active == true; }
+    function isSuperAdmin() { return activeUser() && profile().data.role == 'SUPER_ADMIN'; }
+    function permissionPath(moduleName) {
+      return /databases/$(database)/documents/permissions/$(request.auth.uid + '__' + moduleName);
+    }
+    function hasPermission(moduleName, actionName) {
+      return isSuperAdmin() || (
+        activeUser() &&
+        exists(permissionPath(moduleName)) &&
+        get(permissionPath(moduleName)).data.userId == request.auth.uid &&
+        get(permissionPath(moduleName)).data.module == moduleName &&
+        actionName in get(permissionPath(moduleName)).data.actions
+      );
+    }
+    function canRead(moduleName) { return hasPermission(moduleName, 'READ'); }
+
+    match /users/{userId} {
+      allow get: if (supportedProvider() && request.auth.uid == userId) || canRead('users');
+      allow list: if canRead('users');
+      allow create, update, delete: if false;
+    }
+
+    match /permissions/{permissionId} {
+      allow get: if isSuperAdmin() || canRead('permissions') || (
+        activeUser() && permissionId.matches('^' + request.auth.uid + '__.*$')
+      );
+      allow list: if isSuperAdmin() || canRead('permissions');
+      allow create, update, delete: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if canRead('audit');
+      allow create, update, delete: if false;
+    }
+
+    match /settings/{documentId} {
+      allow read: if activeUser();
+      allow create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
