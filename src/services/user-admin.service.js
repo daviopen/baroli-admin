@@ -62,6 +62,16 @@ export function getDefaultUserPermissionLevels() {
   return { ...DEFAULT_USER_PERMISSION_LEVELS };
 }
 
+export async function saveUserPermissionLevels(userId, permissionLevels, session) {
+  if (!isSuperAdmin(session?.profile)) {
+    throw new Error('Somente SUPER_ADMIN pode alterar permissões.');
+  }
+  return callAdminFunction('adminSetPermissions', {
+    userId,
+    permissions: buildPermissionPayload(permissionLevels)
+  });
+}
+
 export async function createManagedUser(input, session) {
   const capabilities = getUserManagementCapabilities(session);
   if (!capabilities.canCreate) throw new Error('Você não possui permissão para cadastrar usuários.');
@@ -93,20 +103,17 @@ export async function updateManagedUser(userId, input, session) {
   if (!capabilities.canUpdate) throw new Error('Você não possui permissão para editar usuários.');
   if (!userId) throw new Error('Usuário inválido.');
 
-  await callAdminFunction('adminUpdateUser', {
+  const request = {
     userId,
     name: validateName(input.name),
     role: String(input.role || 'USER').toUpperCase(),
     active: input.active !== false
-  });
-
+  };
   if (input.permissionLevels && capabilities.canManagePermissions) {
-    await callAdminFunction('adminSetPermissions', {
-      userId,
-      permissions: buildPermissionPayload(input.permissionLevels)
-    });
+    request.permissions = buildPermissionPayload(input.permissionLevels);
   }
 
+  await callAdminFunction('adminUpdateUser', request);
   return { ok: true };
 }
 
