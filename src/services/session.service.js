@@ -2,7 +2,7 @@ import { loadOwnPermissions, loadUserProfile } from '../repositories/session.rep
 import { getFirebaseServices } from './firebase.service.js';
 
 const AUTHORIZATION_CACHE_KEY = 'baroliAuthorizationSession';
-const AUTHORIZATION_CACHE_VERSION = 1;
+const AUTHORIZATION_CACHE_VERSION = 2;
 let currentSession = null;
 
 function readAuthorizationCache(uid) {
