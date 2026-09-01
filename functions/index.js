@@ -25,8 +25,29 @@ async function getCaller(request, { active = true } = {}) {
   return { uid: request.auth.uid, ...profile };
 }
 
+function isSuperAdmin(caller) {
+  return caller.active === true && caller.role === 'SUPER_ADMIN';
+}
+
 function requireSuperAdmin(caller) {
-  if (caller.role !== 'SUPER_ADMIN') throw new HttpsError('permission-denied', 'Ação exclusiva de SUPER_ADMIN.');
+  if (!isSuperAdmin(caller)) throw new HttpsError('permission-denied', 'Ação exclusiva de SUPER_ADMIN.');
+}
+
+async function callerHasPermission(caller, moduleName, actionName) {
+  if (isSuperAdmin(caller)) return true;
+  const snap = await db.collection('permissions').doc(`${caller.uid}__${moduleName}`).get();
+  if (!snap.exists) return false;
+  const permission = snap.data();
+  return permission.userId === caller.uid &&
+    permission.module === moduleName &&
+    Array.isArray(permission.actions) &&
+    permission.actions.includes(actionName);
+}
+
+async function requirePermission(caller, moduleName, actionName) {
+  if (!(await callerHasPermission(caller, moduleName, actionName))) {
+    throw new HttpsError('permission-denied', `Permissão ${moduleName}:${actionName} obrigatória.`);
+  }
 }
 
 function auditData(caller, action, entityType, entityId, extra = {}) {
@@ -63,9 +84,7 @@ exports.recordSessionLogin = onCall({ region: REGION }, async (request) => {
   const caller = await getCaller(request);
   const batch = db.batch();
   batch.update(db.collection('users').doc(caller.uid), {
-    lastAccessAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-    updatedBy: caller.uid
+    lastAccessAt: FieldValue.serverTimestamp()
   });
   batch.set(db.collection('auditLogs').doc(), auditData(caller, 'LOGIN', 'SESSION', caller.uid));
   await batch.commit();
@@ -80,7 +99,7 @@ exports.recordSessionLogout = onCall({ region: REGION }, async (request) => {
 
 exports.adminCreateUser = onCall({ region: REGION }, async (request) => {
   const caller = await getCaller(request);
-  requireSuperAdmin(caller);
+  await requirePermission(caller, 'users', 'CREATE');
 
   const name = cleanString(request.data?.name, 160);
   const email = cleanString(request.data?.email, 320).toLowerCase();
@@ -89,6 +108,7 @@ exports.adminCreateUser = onCall({ region: REGION }, async (request) => {
   if (!name || !email || !email.includes('@')) throw new HttpsError('invalid-argument', 'Nome e e-mail são obrigatórios.');
   if (temporaryPassword.length < 12) throw new HttpsError('invalid-argument', 'A senha temporária deve ter ao menos 12 caracteres.');
   if (!ROLES.has(role)) throw new HttpsError('invalid-argument', 'Perfil inválido.');
+  if (role === 'SUPER_ADMIN') requireSuperAdmin(caller);
 
   let authUser;
   try {
@@ -120,7 +140,7 @@ exports.adminCreateUser = onCall({ region: REGION }, async (request) => {
 
 exports.adminUpdateUser = onCall({ region: REGION }, async (request) => {
   const caller = await getCaller(request);
-  requireSuperAdmin(caller);
+  await requirePermission(caller, 'users', 'UPDATE');
   const userId = cleanString(request.data?.userId, 128);
   if (!userId) throw new HttpsError('invalid-argument', 'userId obrigatório.');
 
@@ -136,7 +156,14 @@ exports.adminUpdateUser = onCall({ region: REGION }, async (request) => {
     after.role = request.data.role;
   }
   if (!after.name) throw new HttpsError('invalid-argument', 'Nome obrigatório.');
+
+  const changesSuperAdminBoundary = before.role === 'SUPER_ADMIN' || after.role === 'SUPER_ADMIN';
+  if (changesSuperAdminBoundary && before.role !== after.role) requireSuperAdmin(caller);
+  if (before.role === 'SUPER_ADMIN' && before.active !== after.active) requireSuperAdmin(caller);
   await assertCanDemoteOrDeactivate(userId, before, after);
+
+  const oldAuthState = await auth.getUser(userId);
+  await auth.updateUser(userId, { displayName: after.name, disabled: !after.active });
 
   const patch = {
     name: after.name,
@@ -145,11 +172,21 @@ exports.adminUpdateUser = onCall({ region: REGION }, async (request) => {
     updatedAt: FieldValue.serverTimestamp(),
     updatedBy: caller.uid
   };
-  const batch = db.batch();
-  batch.update(ref, patch);
-  batch.set(db.collection('auditLogs').doc(), auditData(caller, 'USER_UPDATED', 'USER', userId, { before, after: { ...after, ...patch } }));
-  await batch.commit();
-  await auth.updateUser(userId, { displayName: after.name, disabled: !after.active });
+  try {
+    const batch = db.batch();
+    batch.update(ref, patch);
+    batch.set(db.collection('auditLogs').doc(), auditData(caller, 'USER_UPDATED', 'USER', userId, {
+      before,
+      after: { ...after, ...patch }
+    }));
+    await batch.commit();
+  } catch (error) {
+    await auth.updateUser(userId, {
+      displayName: oldAuthState.displayName ?? undefined,
+      disabled: oldAuthState.disabled
+    }).catch(() => undefined);
+    throw new HttpsError('internal', 'Não foi possível concluir a atualização do usuário.');
+  }
   return { ok: true };
 });
 
