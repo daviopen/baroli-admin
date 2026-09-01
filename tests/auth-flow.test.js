@@ -11,6 +11,7 @@ const authSource = await readFile(new URL('../src/features/auth/auth.js', import
 const sessionSource = await readFile(new URL('../src/services/session.service.js', import.meta.url), 'utf8');
 const rulesSource = await readFile(new URL('../firestore.rules', import.meta.url), 'utf8');
 const indexSource = await readFile(new URL('../src/index.html', import.meta.url), 'utf8');
+const appCssSource = await readFile(new URL('../src/styles/app.css', import.meta.url), 'utf8');
 
 test('Google login segue o modelo responsivo do louvor-ide', () => {
   assert.match(authSource, /setPersistence\(auth, authSdk\.browserLocalPersistence\)/);
@@ -34,6 +35,12 @@ test('falhas de popup compatíveis acionam fallback para redirect', () => {
   assert.equal(isPopupFallbackError({ code: 'auth/popup-blocked' }), true);
   assert.equal(isPopupFallbackError({ code: 'auth/web-storage-unsupported' }), true);
   assert.equal(isPopupFallbackError({ code: 'auth/network-request-failed' }), false);
+});
+
+test('views ocultas não participam do layout durante troca login/app', () => {
+  assert.match(indexSource, /id="login-view"[^>]*hidden/);
+  assert.match(indexSource, /id="app-view"[^>]*hidden/);
+  assert.match(appCssSource, /\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
 });
 
 test('Hosting e Firebase Auth usam a mesma origem para evitar storage cross-site', () => {
