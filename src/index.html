@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#b01f2e">
   <title>Baroli Admin</title>
+  <link rel="preconnect" href="https://widesysw2689.s3.amazonaws.com" crossorigin>
+  <link rel="icon" href="https://widesysw2689.s3.amazonaws.com/images/logo-1x1.jpg">
   <link rel="stylesheet" href="/styles/tokens.css">
   <link rel="stylesheet" href="/styles/app.css">
   <script src="/config/runtime-config.js"></script>
@@ -13,7 +16,15 @@
   <div id="setup-warning" class="setup-warning" hidden></div>
   <main id="login-view" class="login-layout" hidden>
     <section class="login-card">
-      <div class="brand-mark">B</div>
+      <img
+        class="brand-logo"
+        src="https://widesysw2689.s3.amazonaws.com/images/logo-1x1.jpg"
+        alt="Baroli Imóveis"
+        width="64"
+        height="64"
+        decoding="async"
+        fetchpriority="high"
+      >
       <p class="eyebrow">Baroli Imóveis</p>
       <h1>Administração</h1>
       <p class="muted-text">Acesse com sua conta autorizada.</p>
@@ -30,7 +41,17 @@
 
   <div id="app-view" class="app-shell" hidden>
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark small">B</span><div><strong>Baroli</strong><small>Admin</small></div></div>
+      <div class="brand">
+        <img
+          class="brand-logo small"
+          src="https://widesysw2689.s3.amazonaws.com/images/logo-1x1.jpg"
+          alt=""
+          width="42"
+          height="42"
+          decoding="async"
+        >
+        <div><strong>Baroli</strong><small>Admin</small></div>
+      </div>
       <nav id="navigation"></nav>
       <button id="logout" class="secondary logout">Sair</button>
     </aside>
