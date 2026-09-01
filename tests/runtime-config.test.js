@@ -16,3 +16,10 @@ test('build mantém Cloud Functions desativadas quando FIREBASE_FUNCTIONS_ENABLE
   assert.equal(typeof runtime.firebase.projectId, 'string');
   assert.ok(runtime.firebase.projectId.length > 0, 'projectId deve existir no runtime');
 });
+
+test('build usa domínio first-party do Hosting para Firebase Auth', async () => {
+  const source = await readFile(new URL('../dist/config/runtime-config.js', import.meta.url), 'utf8');
+  const runtime = readRuntimeObject(source);
+
+  assert.equal(runtime.firebase.authDomain, `${runtime.firebase.projectId}.web.app`);
+});
