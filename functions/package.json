@@ -4,7 +4,8 @@
   "main": "index.js",
   "engines": { "node": "22" },
   "scripts": {
-    "bootstrap:super-admin": "node scripts/bootstrap-super-admin.js"
+    "bootstrap:super-admin": "node scripts/bootstrap-super-admin.js",
+    "migrate:permission-levels": "node scripts/migrate-permission-levels.js"
   },
   "dependencies": {
     "firebase-admin": "^14.3.0",
