@@ -4,7 +4,8 @@ import { clearSession, hydrateSession, recordLogin, recordLogout } from '../../s
 export async function signInWithGoogle() {
   const { auth, authSdk } = await getFirebaseServices();
   const provider = new authSdk.GoogleAuthProvider();
-  return authSdk.signInWithPopup(auth, provider);
+  provider.setCustomParameters({ prompt: 'select_account' });
+  return authSdk.signInWithRedirect(auth, provider);
 }
 
 export async function signInWithEmail(email, password) {
