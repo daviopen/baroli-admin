@@ -1,0 +1,252 @@
+.termination-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 20px;
+  align-items: start;
+}
+
+.termination-form-column {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.termination-section {
+  display: grid;
+  gap: 18px;
+}
+
+.section-heading,
+.section-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-heading {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.section-step {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font-weight: 800;
+}
+
+.section-hint {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.form-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.form-grid.two-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-grid.three-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.full-span {
+  grid-column: 1 / -1;
+}
+
+.field textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 86px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.field textarea:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 14%, transparent);
+  outline: none;
+}
+
+.calculation-note {
+  min-height: 100%;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.calculation-note strong {
+  color: var(--text);
+}
+
+.termination-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.secondary.compact {
+  width: auto;
+  margin: 0;
+}
+
+.termination-summary {
+  position: sticky;
+  top: 24px;
+  overflow: hidden;
+}
+
+.termination-summary .eyebrow {
+  margin-top: 0;
+}
+
+.summary-list {
+  display: grid;
+  gap: 8px;
+}
+
+.summary-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.summary-list > div:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.summary-list span {
+  color: var(--muted);
+}
+
+.summary-list strong {
+  white-space: nowrap;
+}
+
+.summary-list small {
+  display: block;
+  margin: -3px 0 5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.summary-total {
+  margin: 20px -22px -22px;
+  padding: 20px 22px;
+  display: grid;
+  gap: 5px;
+  background: var(--brand-soft);
+  border-top: 1px solid color-mix(in srgb, var(--brand) 20%, transparent);
+}
+
+.summary-total span {
+  color: var(--brand-strong);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.summary-total strong {
+  font-size: 30px;
+  letter-spacing: -.03em;
+}
+
+.summary-total b {
+  color: var(--brand-strong);
+  font-size: 12px;
+}
+
+.termination-summary.is-credit .summary-total {
+  background: var(--success-soft);
+  border-top-color: color-mix(in srgb, var(--success) 22%, transparent);
+}
+
+.termination-summary.is-credit .summary-total span,
+.termination-summary.is-credit .summary-total b {
+  color: var(--success);
+}
+
+.termination-summary.is-settled .summary-total {
+  background: var(--surface-2);
+  border-top-color: var(--border);
+}
+
+.termination-summary.is-settled .summary-total span,
+.termination-summary.is-settled .summary-total b {
+  color: var(--muted);
+}
+
+.summary-rule {
+  margin: 38px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.summary-warning {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1100px) {
+  .termination-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .termination-summary {
+    position: static;
+    order: -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .form-grid.two-columns,
+  .form-grid.three-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .termination-actions {
+    flex-direction: column;
+  }
+
+  .termination-actions .primary,
+  .termination-actions .secondary {
+    width: 100%;
+  }
+
+  .summary-list > div {
+    align-items: flex-start;
+  }
+}
