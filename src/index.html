@@ -11,6 +11,28 @@
   <link rel="stylesheet" href="/styles/tokens.css">
   <link rel="stylesheet" href="/styles/app.css">
   <script src="/config/runtime-config.js"></script>
+  <script>
+    (function alignHostingOriginWithFirebaseAuthDomain() {
+      const firebase = window.BAROLI_CONFIG && window.BAROLI_CONFIG.firebase;
+      const projectId = firebase && firebase.projectId;
+      const authDomain = firebase && firebase.authDomain;
+      if (!projectId || !authDomain) return;
+
+      const hostingDomains = new Set([
+        `${projectId}.web.app`,
+        `${projectId}.firebaseapp.com`
+      ]);
+
+      if (
+        window.location.protocol === 'https:'
+        && hostingDomains.has(window.location.hostname)
+        && window.location.hostname !== authDomain
+      ) {
+        const target = `https://${authDomain}${window.location.pathname}${window.location.search}${window.location.hash}`;
+        window.location.replace(target);
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="setup-warning" class="setup-warning" hidden></div>
