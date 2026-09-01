@@ -60,6 +60,9 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BAROLI_ADMIN }}
+      - name: Migrate legacy permission documents
+        run: npm run migrate:permission-levels
+        working-directory: functions
       - name: Read canonical Firebase Web configuration
         run: |
           npx firebase apps:sdkconfig WEB --project "$FIREBASE_PROJECT_ID" --json > /tmp/firebase-sdk.json
