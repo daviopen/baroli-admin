@@ -7,64 +7,73 @@
 - [x] Definir auditoria imutável
 - [x] Criar regras iniciais do Firestore
 - [x] Criar projeto Firebase `baroli-admin`
+- [x] Documentar identidade com referência oficial `baroliimoveis.com.br`
 - [ ] Configurar ambientes DEV e PRD
-- [ ] Configurar Authentication: Google + e-mail/senha
-- [ ] Configurar Hosting e Firestore
+- [ ] Habilitar Authentication no Console: Google + e-mail/senha
+- [ ] Criar/configurar Hosting, Firestore e Functions no projeto Firebase
+- [ ] Registrar Web App e preencher configuração de runtime
 
 ## P1 — Autenticação
-- [ ] Tela de login
-- [ ] Login Google
-- [ ] Login e-mail/senha
-- [ ] Logout
-- [ ] Recuperação de senha
-- [ ] Bloqueio de usuário não cadastrado
-- [ ] Bloqueio de usuário inativo
-- [ ] Registro seguro de `lastAccessAt`
-- [ ] Testes de sessão e expiração
+- [x] Tela de login
+- [x] Login Google
+- [x] Login e-mail/senha
+- [x] Logout
+- [x] Recuperação de senha
+- [x] Bloqueio de usuário não cadastrado
+- [x] Bloqueio de usuário inativo
+- [x] Registro seguro de `lastAccessAt` via backend
+- [x] Auditoria backend de login/logout
+- [ ] Testes de sessão, refresh token e expiração
 
 ## P2 — Usuários
 - [ ] Listagem com filtros e paginação
-- [ ] Cadastro de usuário
-- [ ] Consulta
-- [ ] Edição
-- [ ] Ativar/desativar
-- [ ] Perfil USER / ADMIN / SUPER_ADMIN
-- [ ] Proteção contra auto-rebaixamento do último SUPER_ADMIN
-- [ ] Auditoria das alterações
+- [x] Cadastro de usuário via Cloud Function/Admin SDK
+- [ ] Tela de consulta detalhada
+- [ ] Edição completa de nome/perfil pela UI
+- [x] Ativar/desativar
+- [x] Perfil USER / ADMIN / SUPER_ADMIN no modelo/backend
+- [x] Bootstrap controlado do primeiro SUPER_ADMIN
+- [x] Proteção contra remover/desativar o último SUPER_ADMIN
+- [x] Auditoria das alterações
 
 ## P3 — Permissões
-- [ ] Catálogo central de módulos
-- [ ] CRUD de permissões por usuário
-- [ ] READ / CREATE / UPDATE / DELETE
-- [ ] Matriz visual de permissões
-- [ ] Cache seguro no cliente
-- [ ] Validação nas regras do Firestore
-- [ ] Auditoria das alterações
+- [x] Catálogo central de módulos
+- [x] Leitura/gravação de permissões por usuário
+- [x] READ / CREATE / UPDATE / DELETE
+- [x] Matriz visual de permissões
+- [x] Carregamento das permissões uma vez por sessão
+- [x] Validação nas regras do Firestore
+- [x] Gravação privilegiada via backend
+- [x] Auditoria das alterações
 
 ## P4 — Auditoria
-- [ ] Tela de auditoria
+- [x] Tela inicial de auditoria
 - [ ] Filtros por usuário, módulo, ação e período
 - [ ] Visualização before/after
-- [ ] Registro de login/logout
-- [ ] Registro de alterações administrativas
+- [x] Registro de login/logout
+- [x] Registro de alterações administrativas
 - [ ] Exportação CSV/PDF
 - [ ] Política de retenção
 
 ## P5 — Shell administrativo
-- [ ] Dashboard inicial
-- [ ] Menu lateral responsivo
-- [ ] Design system Baroli
-- [ ] Tema claro/escuro
-- [ ] Estados loading/empty/error padronizados
-- [ ] Toasts e confirmações
+- [x] Dashboard inicial
+- [x] Menu lateral responsivo
+- [x] Tokens/design system inicial da Baroli
+- [x] Suporte automático a tema claro/escuro do sistema operacional
+- [ ] Alternância manual de tema
+- [x] Estados loading/error básicos
+- [ ] Empty states padronizados em todas as telas
+- [ ] Toasts e modais de confirmação substituindo alerts/prompts provisórios
 - [ ] Preservação de filtros/paginação ao voltar
+- [ ] Incorporar arquivo oficial do logo/paleta institucional
 
 ## P6 — Qualidade e DevOps
 - [ ] ESLint/format
-- [ ] Testes unitários
+- [x] Testes unitários iniciais de autorização
 - [ ] Testes das Firestore Rules com Emulator Suite
+- [ ] Testes unitários de Cloud Functions
 - [ ] E2E Playwright
-- [ ] GitHub Actions PR checks
+- [x] GitHub Actions PR/push checks
 - [ ] Deploy DEV automático
 - [ ] Deploy PRD com aprovação
 - [ ] Monitoramento de erros
