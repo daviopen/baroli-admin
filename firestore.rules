@@ -24,11 +24,19 @@ service cloud.firestore {
       );
     }
     function canRead(moduleName) { return hasPermission(moduleName, 'READ'); }
+    function ownLastAccessUpdate(userId) {
+      return supportedProvider()
+        && request.auth.uid == userId
+        && resource.data.active == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastAccessAt'])
+        && request.resource.data.lastAccessAt == request.time;
+    }
 
     match /users/{userId} {
       allow get: if (supportedProvider() && request.auth.uid == userId) || canRead('users');
       allow list: if canRead('users');
-      allow create, update, delete: if false;
+      allow update: if ownLastAccessUpdate(userId);
+      allow create, delete: if false;
     }
 
     match /permissions/{permissionId} {
