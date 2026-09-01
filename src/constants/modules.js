@@ -1,4 +1,5 @@
 export const ACTIONS = Object.freeze(['READ', 'CREATE', 'UPDATE', 'DELETE']);
+export const PERMISSION_LEVELS = Object.freeze(['NONE', 'READ', 'EDIT']);
 
 export const MODULES = Object.freeze([
   { id: 'dashboard', label: 'Dashboard' },
