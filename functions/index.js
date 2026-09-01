@@ -10,6 +10,7 @@ const auth = getAuth();
 const REGION = 'southamerica-east1';
 const ROLES = new Set(['USER', 'ADMIN', 'SUPER_ADMIN']);
 const ACTIONS = new Set(['READ', 'CREATE', 'UPDATE', 'DELETE']);
+const LEVELS = new Set(['NONE', 'READ', 'EDIT']);
 const MODULE_PATTERN = /^[a-z][a-z0-9_-]{1,48}$/;
 
 function cleanString(value, maxLength) {
@@ -34,6 +35,13 @@ function requireSuperAdmin(caller) {
   if (!isSuperAdmin(caller)) throw new HttpsError('permission-denied', 'Ação exclusiva de SUPER_ADMIN.');
 }
 
+function levelAllowsAction(level, actionName) {
+  if (!ACTIONS.has(actionName)) return false;
+  const normalized = String(level || 'NONE').toUpperCase();
+  if (normalized === 'EDIT') return true;
+  return normalized === 'READ' && actionName === 'READ';
+}
+
 async function callerHasPermission(caller, moduleName, actionName) {
   if (isSuperAdmin(caller)) return true;
   const snap = await db.collection('permissions').doc(`${caller.uid}__${moduleName}`).get();
@@ -41,8 +49,7 @@ async function callerHasPermission(caller, moduleName, actionName) {
   const permission = snap.data();
   return permission.userId === caller.uid &&
     permission.module === moduleName &&
-    Array.isArray(permission.actions) &&
-    permission.actions.includes(actionName);
+    levelAllowsAction(permission.level, actionName);
 }
 
 async function requirePermission(caller, moduleName, actionName) {
@@ -58,29 +65,26 @@ function normalizePermissionsPayload(permissions, { optional = false } = {}) {
   }
 
   const normalized = {};
-  for (const [moduleName, rawActions] of Object.entries(permissions)) {
+  for (const [moduleName, rawLevel] of Object.entries(permissions)) {
     if (!MODULE_PATTERN.test(moduleName)) throw new HttpsError('invalid-argument', `Módulo inválido: ${moduleName}`);
-    if (!Array.isArray(rawActions)) throw new HttpsError('invalid-argument', `Ações inválidas para ${moduleName}.`);
-    const actions = [...new Set(rawActions)];
-    if (actions.some((action) => !ACTIONS.has(action))) {
-      throw new HttpsError('invalid-argument', `Ação inválida em ${moduleName}.`);
-    }
-    normalized[moduleName] = actions;
+    const level = String(rawLevel || 'NONE').toUpperCase();
+    if (!LEVELS.has(level)) throw new HttpsError('invalid-argument', `Nível inválido em ${moduleName}.`);
+    normalized[moduleName] = level;
   }
   return normalized;
 }
 
 function applyPermissionsToBatch(batch, userId, permissions, actorUserId) {
   if (!permissions) return;
-  for (const [moduleName, actions] of Object.entries(permissions)) {
+  for (const [moduleName, level] of Object.entries(permissions)) {
     const permissionRef = db.collection('permissions').doc(`${userId}__${moduleName}`);
-    if (actions.length === 0) {
+    if (level === 'NONE') {
       batch.delete(permissionRef);
     } else {
       batch.set(permissionRef, {
         userId,
         module: moduleName,
-        actions,
+        level,
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: actorUserId
       });
