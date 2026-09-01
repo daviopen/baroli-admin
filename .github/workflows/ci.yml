@@ -85,3 +85,43 @@ jobs:
         run: npm run build
       - name: Deploy Hosting and Firestore
         run: npx firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting,firestore:rules,firestore:indexes --non-interactive
+      - name: Smoke test production runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_URL="https://${FIREBASE_PROJECT_ID}.web.app"
+          for attempt in 1 2 3 4 5; do
+            curl --fail --silent --show-error --no-cache \
+              -H 'Cache-Control: no-cache' \
+              "${BASE_URL}/config/runtime-config.js?commit=${GITHUB_SHA}" \
+              -o /tmp/runtime-config.js && break
+            if [ "$attempt" -eq 5 ]; then
+              echo "Não foi possível ler o runtime publicado."
+              exit 1
+            fi
+            sleep 3
+          done
+          node <<'NODE'
+          const fs = require('node:fs');
+          const source = fs.readFileSync('/tmp/runtime-config.js', 'utf8');
+          const match = source.match(/window\.BAROLI_CONFIG\s*=\s*(\{[\s\S]*\});\s*$/);
+          if (!match) throw new Error('Runtime publicado é inválido.');
+          const runtime = JSON.parse(match[1]);
+          if (runtime.firebase?.projectId !== process.env.FIREBASE_PROJECT_ID) {
+            throw new Error(`Projeto publicado incorreto: ${runtime.firebase?.projectId ?? 'ausente'}`);
+          }
+          if (!runtime.firebase?.apiKey || !runtime.firebase?.appId) {
+            throw new Error('Configuração Firebase pública incompleta.');
+          }
+          if (runtime.functionsEnabled !== false) {
+            throw new Error('Cloud Functions foram habilitadas no cliente antes do backend estar publicado.');
+          }
+          console.log('Runtime de produção validado: Firebase configurado e Functions desativadas.');
+          NODE
+          curl --fail --silent --show-error --no-cache \
+            -H 'Cache-Control: no-cache' \
+            "${BASE_URL}/services/session.service.js?commit=${GITHUB_SHA}" \
+            | grep -F "if (!functionsEnabled) return" >/dev/null
+          HEADERS="$(curl --fail --silent --show-error -I -H 'Cache-Control: no-cache' "${BASE_URL}/config/runtime-config.js?commit=${GITHUB_SHA}")"
+          echo "$HEADERS" | grep -i '^cache-control:' | grep -Ei 'no-cache|no-store' >/dev/null
+          echo "Smoke test de produção concluído."
