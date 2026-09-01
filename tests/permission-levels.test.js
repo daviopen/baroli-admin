@@ -1,25 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ACTIONS, MODULES } from '../src/constants/modules.js';
+import { MODULES, PERMISSION_LEVELS } from '../src/constants/modules.js';
 import {
   DEFAULT_USER_PERMISSION_LEVELS,
-  actionsToPermissionLevel,
   buildPermissionLevels,
   buildPermissionPayload,
-  permissionLevelToActions
+  normalizePermissionLevel
 } from '../src/features/permissions/permission-levels.js';
 
-test('permission levels map to the Baroli CRUD action model', () => {
-  assert.deepEqual(permissionLevelToActions('NONE'), []);
-  assert.deepEqual(permissionLevelToActions('READ'), ['READ']);
-  assert.deepEqual(permissionLevelToActions('EDIT'), [...ACTIONS]);
-});
-
-test('technical action arrays collapse to Louvor-style levels', () => {
-  assert.equal(actionsToPermissionLevel([]), 'NONE');
-  assert.equal(actionsToPermissionLevel(['READ']), 'READ');
-  assert.equal(actionsToPermissionLevel(['READ', 'UPDATE']), 'EDIT');
-  assert.equal(actionsToPermissionLevel(['CREATE']), 'EDIT');
+test('permission levels follow the Louvor IDE contract', () => {
+  assert.deepEqual(PERMISSION_LEVELS, ['NONE', 'READ', 'EDIT']);
+  assert.equal(normalizePermissionLevel('read'), 'READ');
+  assert.equal(normalizePermissionLevel('edit'), 'EDIT');
+  assert.equal(normalizePermissionLevel('invalid'), 'NONE');
 });
 
 test('new users default to dashboard read and no access elsewhere', () => {
@@ -28,10 +21,11 @@ test('new users default to dashboard read and no access elsewhere', () => {
   }
 });
 
-test('payload and levels round-trip consistently', () => {
+test('permission payload persists levels directly without CRUD translation', () => {
   const levels = Object.fromEntries(MODULES.map(({ id }, index) => [
     id,
     index % 3 === 0 ? 'EDIT' : index % 3 === 1 ? 'READ' : 'NONE'
   ]));
-  assert.deepEqual(buildPermissionLevels(buildPermissionPayload(levels)), levels);
+  assert.deepEqual(buildPermissionPayload(levels), levels);
+  assert.deepEqual(buildPermissionLevels(levels), levels);
 });
