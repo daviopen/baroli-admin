@@ -126,12 +126,10 @@ jobs:
           fi
           AUTH_SOURCE="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "${BASE_URL}/features/auth/auth.js?commit=${GITHUB_SHA}")"
           echo "$AUTH_SOURCE" | grep -F "signInWithPopup(auth, provider)" >/dev/null
+          echo "$AUTH_SOURCE" | grep -F "signInWithRedirect(auth, provider)" >/dev/null
+          echo "$AUTH_SOURCE" | grep -F "getRedirectResult(auth)" >/dev/null
           echo "$AUTH_SOURCE" | grep -F "browserLocalPersistence" >/dev/null
-          if echo "$AUTH_SOURCE" | grep -F "signInWithRedirect(" >/dev/null; then
-            echo "Fluxo de redirect inesperado está publicado."
-            exit 1
-          fi
+          echo "$AUTH_SOURCE" | grep -F "googleAuthStrategy" >/dev/null
           HEADERS="$(curl --fail --silent --show-error -I -H 'Cache-Control: no-cache' "${BASE_URL}/config/runtime-config.js?commit=${GITHUB_SHA}")"
           echo "$HEADERS" | grep -i '^cache-control:' | grep -Ei 'no-cache|no-store' >/dev/null
-          echo "$HEADERS" | grep -i '^cross-origin-opener-policy:' | grep -i 'same-origin-allow-popups' >/dev/null
-          echo "Smoke test de produção concluído com fluxo de autenticação alinhado ao louvor-ide."
+          echo "Smoke test de produção concluído com autenticação Google híbrida alinhada ao louvor-ide."

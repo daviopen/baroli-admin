@@ -2,7 +2,7 @@ import { MODULES } from './constants/modules.js';
 import { canAccessModule } from './core/authorization.js';
 import { hasFirebaseConfig } from './config/firebase.js';
 import { renderAudit } from './features/audit/view.js';
-import { sendPasswordReset, signInWithEmail, signInWithGoogle, signOutSafely, watchAuth } from './features/auth/auth.js';
+import { friendlyAuthError, sendPasswordReset, signInWithEmail, signInWithGoogle, signOutSafely, watchAuth } from './features/auth/auth.js';
 import { renderDashboard } from './features/dashboard/view.js';
 import { renderPermissions } from './features/permissions/view.js';
 import { renderUsers } from './features/users/view.js';
@@ -32,6 +32,7 @@ function showApp(currentSession) {
   session = currentSession;
   loginView.hidden = true;
   appView.hidden = false;
+  errorBox.textContent = '';
   renderNavigation();
   navigate(location.hash.replace('#/', '') || 'dashboard');
 }
@@ -56,6 +57,11 @@ async function navigate(route) {
   }
 }
 
+function reportAuthFailure(context, error) {
+  console.warn(`[Auth] ${context}: ${error?.code || 'auth/unknown'}`);
+  showLogin(friendlyAuthError(error));
+}
+
 window.addEventListener('hashchange', () => session && navigate(location.hash.replace('#/', '')));
 
 document.querySelector('#login-form').addEventListener('submit', async (event) => {
@@ -63,22 +69,29 @@ document.querySelector('#login-form').addEventListener('submit', async (event) =
   errorBox.textContent = '';
   try {
     await signInWithEmail(document.querySelector('#email').value, document.querySelector('#password').value);
-  } catch {
-    errorBox.textContent = 'Não foi possível entrar. Confira suas credenciais.';
+  } catch (error) {
+    reportAuthFailure('login e-mail/senha', error);
   }
 });
 
 document.querySelector('#google-login').addEventListener('click', async () => {
   errorBox.textContent = '';
-  try { await signInWithGoogle(); }
-  catch { errorBox.textContent = 'Não foi possível entrar com Google.'; }
+  try {
+    await signInWithGoogle();
+  } catch (error) {
+    reportAuthFailure('login Google', error);
+  }
 });
 
 document.querySelector('#forgot-password').addEventListener('click', async () => {
   const email = document.querySelector('#email').value || prompt('Informe seu e-mail:');
   if (!email) return;
-  try { await sendPasswordReset(email); alert('Se a conta existir, as instruções de recuperação serão enviadas.'); }
-  catch { errorBox.textContent = 'Não foi possível iniciar a recuperação agora.'; }
+  try {
+    await sendPasswordReset(email);
+    alert('Se a conta existir, as instruções de recuperação serão enviadas.');
+  } catch (error) {
+    reportAuthFailure('recuperação de senha', error);
+  }
 });
 
 document.querySelector('#logout').addEventListener('click', signOutSafely);
@@ -91,6 +104,7 @@ if (!hasFirebaseConfig()) {
   watchAuth(
     showApp,
     () => showLogin(),
-    (error) => showLogin(error.message === 'USER_INACTIVE' ? 'Seu acesso está inativo.' : 'Sua conta ainda não está autorizada neste sistema.')
-  ).catch((error) => showLogin(error.message));
+    (error) => showLogin(error.message === 'USER_INACTIVE' ? 'Seu acesso está inativo.' : 'Sua conta ainda não está autorizada neste sistema.'),
+    (error) => reportAuthFailure('retorno de autenticação', error)
+  ).catch((error) => reportAuthFailure('inicialização', error));
 }

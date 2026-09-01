@@ -16,6 +16,7 @@
 ## P1 — Autenticação
 - [x] Tela de login
 - [x] Login Google
+- [x] Login Google responsivo no padrão `louvor-ide` (popup desktop, redirect mobile e fallback)
 - [x] Login e-mail/senha
 - [x] Logout
 - [x] Recuperação de senha
@@ -70,6 +71,7 @@
 ## P6 — Qualidade e DevOps
 - [ ] ESLint/format
 - [x] Testes unitários iniciais de autorização
+- [x] Testes do fluxo Google híbrido desktop/mobile
 - [ ] Testes das Firestore Rules com Emulator Suite
 - [ ] Testes unitários de Cloud Functions
 - [ ] E2E Playwright

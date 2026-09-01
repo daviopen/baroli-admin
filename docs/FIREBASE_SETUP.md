@@ -21,7 +21,13 @@ Em Authentication → Sign-in method, habilitar:
 - Google;
 - E-mail/senha.
 
-Domínios autorizados devem conter apenas os ambientes necessários.
+Em **Authentication → Settings → Authorized domains**, confirmar no mínimo:
+
+- `baroli-admin.web.app`;
+- `baroli-admin.firebaseapp.com`;
+- `localhost`, para desenvolvimento local.
+
+O login Google segue o mesmo modelo do `louvor-ide`: persistência local, popup em navegadores desktop, redirect em dispositivos móveis e fallback de popup para redirect quando o navegador bloquear a janela ou o Web Storage. Navegadores internos de redes sociais/mensageiros devem orientar o usuário a abrir o sistema no Chrome ou Safari.
 
 ## 3. Firestore
 
@@ -80,7 +86,9 @@ Antes do primeiro deploy de Functions, confirme que o projeto possui os recursos
 
 Após deploy:
 
-- testar login Google;
+- testar login Google em desktop usando popup;
+- testar login Google em mobile usando redirect;
+- testar fallback popup → redirect quando popup/Web Storage estiver bloqueado;
 - testar e-mail/senha;
 - confirmar bloqueio de usuário sem perfil;
 - confirmar bloqueio de usuário inativo;
