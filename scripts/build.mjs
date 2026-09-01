@@ -10,10 +10,20 @@ await mkdir(dist, { recursive: true });
 await cp(src, dist, { recursive: true });
 await mkdir(path.join(dist, 'config'), { recursive: true });
 
+const projectId = process.env.FIREBASE_PROJECT_ID ?? '';
+const configuredAuthDomain = process.env.FIREBASE_AUTH_DOMAIN ?? '';
+const hostingAuthDomain = (
+  process.env.FIREBASE_HOSTING_AUTH_DOMAIN
+  ?? (projectId ? `${projectId}.web.app` : configuredAuthDomain)
+).trim().replace(/^https?:\/\//i, '').replace(/\/$/, '');
+
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY ?? '',
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN ?? '',
-  projectId: process.env.FIREBASE_PROJECT_ID ?? '',
+  // Mesmo padrão do louvor-ide: o helper OAuth fica no domínio first-party do
+  // Firebase Hosting, evitando redirect/storage cross-site entre web.app e
+  // firebaseapp.com.
+  authDomain: hostingAuthDomain,
+  projectId,
   storageBucket: process.env.FIREBASE_STORAGE_BUCKET ?? '',
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID ?? '',
   appId: process.env.FIREBASE_APP_ID ?? '',
@@ -34,4 +44,4 @@ await writeFile(
   'utf8'
 );
 
-console.log('Build concluído em dist/.');
+console.log(`Build concluído em dist/. Firebase Auth: ${hostingAuthDomain || 'não configurado'}`);
