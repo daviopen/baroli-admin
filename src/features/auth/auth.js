@@ -38,14 +38,24 @@ export async function watchAuth(onReady, onSignedOut, onBlocked) {
       return;
     }
 
+    let session;
     try {
-      const session = await hydrateSession(user);
-      await recordLogin();
-      onReady(session);
+      session = await hydrateSession(user);
     } catch (error) {
       clearSession();
       await authSdk.signOut(auth);
       onBlocked(error);
+      return;
     }
+
+    try {
+      await recordLogin();
+    } catch (error) {
+      // Auditoria de sessão é best-effort: indisponibilidade temporária das
+      // Cloud Functions ou da rede não pode invalidar uma autenticação válida.
+      console.warn('Não foi possível registrar a auditoria de login.', error);
+    }
+
+    onReady(session);
   });
 }
