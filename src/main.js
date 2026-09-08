@@ -40,6 +40,10 @@ function navIcon(id) {
   return `<span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="${path}"/></svg></span>`;
 }
 
+function treeChevron() {
+  return '<span class="nav-tree-chevron" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></span>';
+}
+
 function navLink({ id, label }) {
   return `<a href="#/${id}" data-route="${id}" title="${label}">${navIcon(id)}<span class="nav-label">${label}</span></a>`;
 }
@@ -140,12 +144,12 @@ function renderNavigation() {
   const canUseTerminations = canAccessModule(session, 'lease-termination');
   const terminationOpen = ['lease-terminations', 'lease-termination'].includes(currentRoute) ? ' open' : '';
   const terminationHtml = canUseTerminations
-    ? `<details class="nav-tree" data-nav-tree="terminations"${terminationOpen}><summary title="Rescisões">${navIcon('terminations')}<span class="nav-label">Rescisões</span><span class="nav-tree-chevron" aria-hidden="true">⌄</span></summary><div class="nav-tree-children">${navLink({ id: 'lease-terminations', label: 'Consultar' })}${navLink({ id: 'lease-termination', label: 'Calcular' })}</div></details>`
+    ? `<details class="nav-tree" data-nav-tree="terminations"${terminationOpen}><summary title="Rescisões">${navIcon('terminations')}<span class="nav-label">Rescisões</span>${treeChevron()}</summary><div class="nav-tree-children">${navLink({ id: 'lease-terminations', label: 'Consultar' })}${navLink({ id: 'lease-termination', label: 'Calcular' })}</div></details>`
     : '';
 
   const configOpen = configIds.has(currentRoute) ? ' open' : '';
   const configHtml = configItems.length
-    ? `<details class="nav-tree" data-nav-tree="settings"${configOpen}><summary title="Configurações">${navIcon('settings')}<span class="nav-label">Configurações</span><span class="nav-tree-chevron" aria-hidden="true">⌄</span></summary><div class="nav-tree-children">${configItems.map(navLink).join('')}</div></details>`
+    ? `<details class="nav-tree" data-nav-tree="settings"${configOpen}><summary title="Configurações">${navIcon('settings')}<span class="nav-label">Configurações</span>${treeChevron()}</summary><div class="nav-tree-children">${configItems.map(navLink).join('')}</div></details>`
     : '';
 
   navigation.innerHTML = `${primaryItems.map(navLink).join('')}${terminationHtml}${configHtml}`;
