@@ -4,7 +4,7 @@ import { hasFirebaseConfig } from './config/firebase.js';
 import { renderAudit } from './features/audit/view.js';
 import { friendlyAuthError, sendPasswordReset, signInWithEmail, signInWithGoogle, signOutSafely, watchAuth } from './features/auth/auth.js';
 import { renderDashboard } from './features/dashboard/view.js';
-import { renderClients, renderProperties } from './features/data-import/view.js';
+import { renderClients, renderProperties, renderUploads } from './features/data-import/view.js';
 import { renderLeaseTermination } from './features/lease-termination/view.js';
 import { renderProfile } from './features/profile/view.js';
 import { renderUsers } from './features/users/view.js';
@@ -19,11 +19,17 @@ const sidebarProfileLink = document.querySelector('#sidebar-profile-link');
 const mobileMenuButton = document.querySelector('#mobile-menu-button');
 const mobileBackdrop = document.querySelector('#mobile-backdrop');
 let session;
+let uploadsInitialType = 'clients';
+
+function allowedUploadTypes() {
+  return ['clients', 'properties'].filter((moduleName) => canAccessModule(session, moduleName));
+}
 
 const routes = {
   dashboard: async () => { content.innerHTML = renderDashboard(session); },
   users: () => renderUsers(content),
   audit: () => renderAudit(content),
+  uploads: () => renderUploads(content, { allowedTypes: allowedUploadTypes(), initialType: uploadsInitialType }),
   clients: () => renderClients(content),
   properties: () => renderProperties(content),
   'lease-termination': () => renderLeaseTermination(content),
@@ -84,8 +90,15 @@ function showApp(currentSession) {
 }
 
 function renderNavigation() {
-  const available = MODULES.filter(({ id }) => routes[id] && canAccessModule(session, id));
-  navigation.innerHTML = available.map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`).join('');
+  const available = MODULES.filter(({ id }) => !['clients', 'properties'].includes(id) && routes[id] && canAccessModule(session, id));
+  const items = available.map(({ id, label }) => ({ id, label }));
+  const uploadTypes = allowedUploadTypes();
+  if (uploadTypes.length) {
+    const auditIndex = items.findIndex(({ id }) => id === 'audit');
+    const insertAt = auditIndex >= 0 ? auditIndex + 1 : Math.min(2, items.length);
+    items.splice(insertAt, 0, { id: 'uploads', label: 'Uploads' });
+  }
+  navigation.innerHTML = items.map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`).join('');
 }
 
 async function navigate(route) {
@@ -94,11 +107,19 @@ async function navigate(route) {
     requested = 'lease-termination';
     history.replaceState(null, '', '#/lease-termination');
   }
+  if (requested === 'clients' || requested === 'properties') {
+    uploadsInitialType = requested;
+    requested = 'uploads';
+    history.replaceState(null, '', '#/uploads');
+  }
+
   const target = routes[requested] ? requested : 'dashboard';
   if (route === 'permissions') history.replaceState(null, '', '#/users');
   const selfServiceRoute = target === 'profile';
+  const uploadsRoute = target === 'uploads';
+  const authorized = uploadsRoute ? allowedUploadTypes().length > 0 : canAccessModule(session, target);
 
-  if (!selfServiceRoute && !canAccessModule(session, target)) {
+  if (!selfServiceRoute && !authorized) {
     content.innerHTML = '<section class="panel"><h1>Acesso não autorizado</h1><p>Você não possui permissão para este módulo.</p></section>';
     return;
   }
