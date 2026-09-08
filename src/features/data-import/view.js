@@ -2,6 +2,7 @@ import { importParsedRecords, parseClientsSpreadsheet, parsePropertiesSpreadshee
 
 const PAGE_CONFIG = Object.freeze({
   clients: {
+    tabLabel: 'Clientes',
     title: 'Base de clientes',
     eyebrow: 'Cadastros',
     description: 'Importe a planilha de contratos para consolidar proprietários, inquilinos, fiadores e beneficiários em uma única base de clientes.',
@@ -13,6 +14,7 @@ const PAGE_CONFIG = Object.freeze({
     ]
   },
   properties: {
+    tabLabel: 'Imóveis',
     title: 'Base de imóveis',
     eyebrow: 'Cadastros',
     description: 'Importe a planilha de imóveis para atualizar referências, endereços, valores, áreas, características e dados comerciais.',
@@ -26,7 +28,7 @@ const PAGE_CONFIG = Object.freeze({
 });
 
 function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[char]));
+  return String(value ?? '').replace(/[&<>'\"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '\"': '&quot;' }[char]));
 }
 
 function formatCell(key, value) {
@@ -52,17 +54,24 @@ function renderImportSummary(parsed) {
   `;
 }
 
-function template(type) {
+function template(type, { embedded = false } = {}) {
   const config = PAGE_CONFIG[type];
   return `
     <section class="data-page" data-import-type="${type}">
-      <header class="page-heading data-heading">
-        <div>
-          <p class="eyebrow">${config.eyebrow}</p>
-          <h1>${config.title}</h1>
+      ${embedded ? `
+        <div class="upload-tab-intro">
+          <h2>${config.title}</h2>
           <p class="muted-text">${config.description}</p>
         </div>
-      </header>
+      ` : `
+        <header class="page-heading data-heading">
+          <div>
+            <p class="eyebrow">${config.eyebrow}</p>
+            <h1>${config.title}</h1>
+            <p class="muted-text">${config.description}</p>
+          </div>
+        </header>
+      `}
 
       <section class="panel import-panel">
         <div class="import-step-label">1. Selecione a fonte</div>
@@ -183,6 +192,49 @@ async function bindImportPage(container, type) {
       save.textContent = original;
     }
   });
+}
+
+export async function renderUploads(container, { allowedTypes = ['clients', 'properties'], initialType = 'clients' } = {}) {
+  const availableTypes = allowedTypes.filter((type) => PAGE_CONFIG[type]);
+  if (!availableTypes.length) {
+    container.innerHTML = '<section class="panel"><h1>Acesso não autorizado</h1><p>Você não possui permissão para importar clientes ou imóveis.</p></section>';
+    return;
+  }
+
+  let activeType = availableTypes.includes(initialType) ? initialType : availableTypes[0];
+  container.innerHTML = `
+    <section class="uploads-page">
+      <header class="page-heading data-heading">
+        <div>
+          <p class="eyebrow">Base de dados</p>
+          <h1>Uploads</h1>
+          <p class="muted-text">Importe e atualize as bases operacionais da Baroli a partir das planilhas oficiais.</p>
+        </div>
+      </header>
+      <div class="upload-tabs" role="tablist" aria-label="Tipos de upload">
+        ${availableTypes.map((type) => `<button type="button" class="upload-tab" role="tab" data-upload-tab="${type}">${PAGE_CONFIG[type].tabLabel}</button>`).join('')}
+      </div>
+      <div class="upload-tab-content"></div>
+    </section>
+  `;
+
+  const content = container.querySelector('.upload-tab-content');
+  const tabs = [...container.querySelectorAll('[data-upload-tab]')];
+
+  async function activate(type) {
+    if (!availableTypes.includes(type)) return;
+    activeType = type;
+    tabs.forEach((tab) => {
+      const active = tab.dataset.uploadTab === activeType;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+    content.innerHTML = template(activeType, { embedded: true });
+    await bindImportPage(content, activeType);
+  }
+
+  tabs.forEach((tab) => tab.addEventListener('click', () => activate(tab.dataset.uploadTab)));
+  await activate(activeType);
 }
 
 export async function renderClients(container) {
