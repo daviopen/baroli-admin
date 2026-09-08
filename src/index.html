@@ -22,19 +22,9 @@
       const projectId = firebase && firebase.projectId;
       const authDomain = firebase && firebase.authDomain;
       if (!projectId || !authDomain) return;
-
-      const hostingDomains = new Set([
-        `${projectId}.web.app`,
-        `${projectId}.firebaseapp.com`
-      ]);
-
-      if (
-        window.location.protocol === 'https:'
-        && hostingDomains.has(window.location.hostname)
-        && window.location.hostname !== authDomain
-      ) {
-        const target = `https://${authDomain}${window.location.pathname}${window.location.search}${window.location.hash}`;
-        window.location.replace(target);
+      const hostingDomains = new Set([`${projectId}.web.app`, `${projectId}.firebaseapp.com`]);
+      if (window.location.protocol === 'https:' && hostingDomains.has(window.location.hostname) && window.location.hostname !== authDomain) {
+        window.location.replace(`https://${authDomain}${window.location.pathname}${window.location.search}${window.location.hash}`);
       }
     })();
   </script>
@@ -43,15 +33,7 @@
   <div id="setup-warning" class="setup-warning" hidden></div>
   <main id="login-view" class="login-layout" hidden>
     <section class="login-card">
-      <img
-        class="brand-logo"
-        src="https://widesysw2689.s3.amazonaws.com/images/logo-1x1.jpg"
-        alt="Baroli Imóveis"
-        width="64"
-        height="64"
-        decoding="async"
-        fetchpriority="high"
-      >
+      <img class="brand-logo" src="https://widesysw2689.s3.amazonaws.com/images/logo-1x1.jpg" alt="Baroli Imóveis" width="64" height="64" decoding="async" fetchpriority="high">
       <p class="eyebrow">Baroli Imóveis</p>
       <h1>Administração</h1>
       <p class="muted-text">Acesse com sua conta autorizada.</p>
@@ -77,31 +59,28 @@
     </header>
 
     <aside class="sidebar" id="sidebar">
-      <div class="brand">
-        <img
-          class="brand-logo small"
-          src="https://widesysw2689.s3.amazonaws.com/images/logo-1x1.jpg"
-          alt=""
-          width="42"
-          height="42"
-          decoding="async"
-        >
-        <div><strong>Baroli</strong><small>Administração</small></div>
+      <div class="brand sidebar-brand">
+        <img class="brand-logo small" src="https://widesysw2689.s3.amazonaws.com/images/logo-1x1.jpg" alt="" width="42" height="42" decoding="async">
+        <div class="brand-copy"><strong>Baroli</strong><small>Administração</small></div>
+        <button id="sidebar-collapse" class="sidebar-collapse" type="button" aria-label="Recolher menu" title="Recolher menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
       </div>
-      <nav id="navigation"></nav>
+      <nav id="navigation" aria-label="Menu principal"></nav>
       <div class="sidebar-account">
-        <a class="sidebar-profile-link" id="sidebar-profile-link" href="#/profile">
+        <a class="sidebar-profile-link" id="sidebar-profile-link" href="#/profile" title="Meu perfil">
           <span class="shell-avatar" id="shell-avatar"><span id="shell-avatar-fallback">U</span></span>
           <span class="shell-profile-copy"><strong id="shell-profile-name">Meu perfil</strong><small id="shell-profile-role">Conta</small></span>
           <span class="shell-profile-chevron" aria-hidden="true">›</span>
         </a>
-        <button id="logout" class="secondary sidebar-logout">Sair</button>
+        <button id="logout" class="secondary sidebar-logout" title="Sair">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3M14 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/></svg>
+          <span>Sair</span>
+        </button>
       </div>
     </aside>
     <button id="mobile-backdrop" class="mobile-backdrop" type="button" aria-label="Fechar menu"></button>
-    <section class="content-shell">
-      <div id="content"></div>
-    </section>
+    <section class="content-shell"><div id="content"></div></section>
   </div>
 
   <script type="module" src="/main.js"></script>
