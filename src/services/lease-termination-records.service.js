@@ -1,6 +1,9 @@
+import { cachedRead, invalidateReadCache } from '../core/read-cache.js';
 import { getFirebaseServices } from './firebase.service.js';
 
 const COLLECTION = 'leaseTerminations';
+const LIST_LIMIT = 150;
+const LIST_TTL_MS = 60_000;
 
 function clean(value) {
   return String(value ?? '').trim();
@@ -22,15 +25,22 @@ function normalizeRecord(id, data) {
   };
 }
 
-export async function listLeaseTerminations({ includeDeleted = false } = {}) {
+function invalidateTerminationReads() {
+  invalidateReadCache('lease-terminations:list', 'lease-termination:options', 'tasks:refs');
+}
+
+export async function listLeaseTerminations({ includeDeleted = false, force = false } = {}) {
   const { db, firestoreSdk, auth } = await getFirebaseServices();
   if (!auth.currentUser) throw new Error('Sessão expirada. Entre novamente.');
-  const { collection, getDocs } = firestoreSdk;
-  const snapshot = await getDocs(collection(db, COLLECTION));
-  return snapshot.docs
-    .map((item) => normalizeRecord(item.id, item.data()))
-    .filter((item) => includeDeleted || !item.deletedAt)
-    .sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+  const uid = auth.currentUser.uid;
+  return cachedRead(`lease-terminations:list:${uid}:${includeDeleted ? 'all' : 'active'}`, async () => {
+    const { collection, getDocs, query, orderBy, limit } = firestoreSdk;
+    const q = query(collection(db, COLLECTION), orderBy('updatedAt', 'desc'), limit(LIST_LIMIT));
+    const snapshot = await getDocs(q);
+    return snapshot.docs
+      .map((item) => normalizeRecord(item.id, item.data()))
+      .filter((item) => includeDeleted || !item.deletedAt);
+  }, { ttlMs: LIST_TTL_MS, force });
 }
 
 export async function getLeaseTermination(id) {
@@ -81,6 +91,7 @@ export async function saveLeaseTermination({ id = '', lease, input, calculation,
   }
 
   await setDoc(ref, payload, { merge: true });
+  invalidateTerminationReads();
   return ref.id;
 }
 
@@ -94,6 +105,7 @@ export async function updateLeaseTerminationStatus(id, status) {
     updatedAt: serverTimestamp(),
     updatedBy: user.uid
   });
+  invalidateTerminationReads();
 }
 
 export async function deleteLeaseTermination(id) {
@@ -107,4 +119,5 @@ export async function deleteLeaseTermination(id) {
     updatedAt: serverTimestamp(),
     updatedBy: user.uid
   });
+  invalidateTerminationReads();
 }
