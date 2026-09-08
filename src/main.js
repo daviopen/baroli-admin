@@ -18,10 +18,31 @@ const navigation = document.querySelector('#navigation');
 const errorBox = document.querySelector('#login-error');
 const setupWarning = document.querySelector('#setup-warning');
 const sidebarProfileLink = document.querySelector('#sidebar-profile-link');
+const sidebarCollapseButton = document.querySelector('#sidebar-collapse');
 const mobileMenuButton = document.querySelector('#mobile-menu-button');
 const mobileBackdrop = document.querySelector('#mobile-backdrop');
 let session;
 let uploadsInitialType = 'clients';
+
+const ICON_PATHS = {
+  dashboard: 'M4 13h6V4H4v9zm0 7h6v-4H4v4zm10 0h6v-9h-6v9zm0-16v4h6V4h-6z',
+  uploads: 'M12 16V4m0 0L7 9m5-5 5 5M5 15v4h14v-4',
+  users: 'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm7-1a4 4 0 010 8m2-13a4 4 0 010 8',
+  audit: 'M9 11l2 2 4-4M5 4h14v16H5V4zm4-2h6v4H9V2z',
+  settings: 'M12 15.5A3.5 3.5 0 1012 8a3.5 3.5 0 000 7.5zM19 12a7 7 0 01-.2 1.7l2 1.6-2 3.4-2.5-1a7 7 0 01-2.9 1.7L13 22H9l-.4-2.6a7 7 0 01-2.9-1.7l-2.5 1-2-3.4 2-1.6A7 7 0 013 12a7 7 0 01.2-1.7l-2-1.6 2-3.4 2.5 1a7 7 0 012.9-1.7L9 2h4l.4 2.6a7 7 0 012.9 1.7l2.5-1 2 3.4-2 1.6A7 7 0 0119 12z',
+  terminations: 'M6 3h9l4 4v14H6V3zm8 1v4h4M9 12h6M9 16h5',
+  'lease-terminations': 'M5 5h14M5 10h14M5 15h9M5 20h7',
+  'lease-termination': 'M12 3v18M7 7h7.5a3 3 0 010 6H9.5a3 3 0 000 6H17'
+};
+
+function navIcon(id) {
+  const path = ICON_PATHS[id] || 'M12 5a7 7 0 100 14 7 7 0 000-14z';
+  return `<span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="${path}"/></svg></span>`;
+}
+
+function navLink({ id, label }) {
+  return `<a href="#/${id}" data-route="${id}" title="${label}">${navIcon(id)}<span class="nav-label">${label}</span></a>`;
+}
 
 function allowedUploadTypes() {
   return ['clients', 'properties'].filter((moduleName) => canAccessModule(session, moduleName));
@@ -60,12 +81,10 @@ function renderShellProfile(profile = session?.profile) {
   const fallback = profileInitials(profile);
   document.querySelector('#shell-profile-name').textContent = name;
   document.querySelector('#shell-profile-role').textContent = profileLabel(profile);
-
   const avatar = document.querySelector('#shell-avatar');
   avatar.innerHTML = photoURL
     ? `<img src="${photoURL.replaceAll('"', '&quot;')}" alt="" referrerpolicy="no-referrer"><span class="sr-only">${fallback}</span>`
     : `<span id="shell-avatar-fallback">${fallback}</span>`;
-
   const mobileProfile = document.querySelector('#mobile-profile-link');
   mobileProfile.innerHTML = photoURL
     ? `<img src="${photoURL.replaceAll('"', '&quot;')}" alt="" referrerpolicy="no-referrer">`
@@ -76,6 +95,20 @@ function setMobileMenu(open) {
   document.body.classList.toggle('shell-menu-open', open);
   mobileMenuButton?.setAttribute('aria-expanded', String(open));
   mobileMenuButton?.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+}
+
+function setSidebarCollapsed(collapsed, persist = true) {
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+  sidebarCollapseButton?.setAttribute('aria-label', collapsed ? 'Expandir menu' : 'Recolher menu');
+  sidebarCollapseButton?.setAttribute('title', collapsed ? 'Expandir menu' : 'Recolher menu');
+  if (persist) {
+    try { localStorage.setItem('baroli:sidebar-collapsed', collapsed ? '1' : '0'); } catch (_) {}
+  }
+}
+
+function restoreSidebarState() {
+  try { setSidebarCollapsed(localStorage.getItem('baroli:sidebar-collapsed') === '1', false); }
+  catch (_) { setSidebarCollapsed(false, false); }
 }
 
 function showLogin(message = '') {
@@ -90,6 +123,7 @@ function showApp(currentSession) {
   loginView.hidden = true;
   appView.hidden = false;
   errorBox.textContent = '';
+  restoreSidebarState();
   renderNavigation();
   renderShellProfile();
   navigate(location.hash.replace('#/', '') || 'dashboard');
@@ -100,23 +134,21 @@ function renderNavigation() {
   const configIds = new Set(['users', 'audit']);
   const primaryItems = available.filter(({ id }) => !configIds.has(id)).map(({ id, label }) => ({ id, label }));
   const configItems = available.filter(({ id }) => configIds.has(id)).map(({ id, label }) => ({ id, label }));
-
   if (allowedUploadTypes().length) primaryItems.push({ id: 'uploads', label: 'Uploads' });
 
-  const primaryHtml = primaryItems.map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`).join('');
   const currentRoute = location.hash.replace('#/', '') || 'dashboard';
   const canUseTerminations = canAccessModule(session, 'lease-termination');
   const terminationOpen = ['lease-terminations', 'lease-termination'].includes(currentRoute) ? ' open' : '';
   const terminationHtml = canUseTerminations
-    ? `<details class="nav-tree" data-nav-tree="terminations"${terminationOpen}><summary><span>Rescisões</span><span class="nav-tree-chevron" aria-hidden="true">⌄</span></summary><div class="nav-tree-children"><a href="#/lease-terminations" data-route="lease-terminations">Consultar</a><a href="#/lease-termination" data-route="lease-termination">Calcular</a></div></details>`
+    ? `<details class="nav-tree" data-nav-tree="terminations"${terminationOpen}><summary title="Rescisões">${navIcon('terminations')}<span class="nav-label">Rescisões</span><span class="nav-tree-chevron" aria-hidden="true">⌄</span></summary><div class="nav-tree-children">${navLink({ id: 'lease-terminations', label: 'Consultar' })}${navLink({ id: 'lease-termination', label: 'Calcular' })}</div></details>`
     : '';
 
   const configOpen = configIds.has(currentRoute) ? ' open' : '';
   const configHtml = configItems.length
-    ? `<details class="nav-tree" data-nav-tree="settings"${configOpen}><summary><span>Configurações</span><span class="nav-tree-chevron" aria-hidden="true">⌄</span></summary><div class="nav-tree-children">${configItems.map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`).join('')}</div></details>`
+    ? `<details class="nav-tree" data-nav-tree="settings"${configOpen}><summary title="Configurações">${navIcon('settings')}<span class="nav-label">Configurações</span><span class="nav-tree-chevron" aria-hidden="true">⌄</span></summary><div class="nav-tree-children">${configItems.map(navLink).join('')}</div></details>`
     : '';
 
-  navigation.innerHTML = `${primaryHtml}${terminationHtml}${configHtml}`;
+  navigation.innerHTML = `${primaryItems.map(navLink).join('')}${terminationHtml}${configHtml}`;
 }
 
 async function navigate(route) {
@@ -149,8 +181,10 @@ async function navigate(route) {
 
   navigation.querySelectorAll('a').forEach((link) => link.classList.toggle('active', link.dataset.route === target));
   const settingsTree = navigation.querySelector('[data-nav-tree="settings"]');
+  settingsTree?.classList.toggle('active', ['users', 'audit'].includes(target));
   if (settingsTree && ['users', 'audit'].includes(target)) settingsTree.open = true;
   const terminationTree = navigation.querySelector('[data-nav-tree="terminations"]');
+  terminationTree?.classList.toggle('active', terminationRoute);
   if (terminationTree && terminationRoute) terminationTree.open = true;
   sidebarProfileLink?.classList.toggle('active', selfServiceRoute);
   setMobileMenu(false);
@@ -174,6 +208,7 @@ window.addEventListener('baroli:profile-updated', (event) => {
   renderShellProfile(session.profile);
 });
 
+sidebarCollapseButton?.addEventListener('click', () => setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed')));
 mobileMenuButton?.addEventListener('click', () => setMobileMenu(!document.body.classList.contains('shell-menu-open')));
 mobileBackdrop?.addEventListener('click', () => setMobileMenu(false));
 window.addEventListener('keydown', (event) => { if (event.key === 'Escape') setMobileMenu(false); });
