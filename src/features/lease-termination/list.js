@@ -55,10 +55,13 @@ function row(record) {
 }
 
 function matches(record, filters) {
+  const recordStatus = record.status || 'CALCULADA';
+  if (!filters.status && recordStatus === 'CANCELADA') return false;
+  if (filters.status && recordStatus !== filters.status) return false;
+
   const query = filters.query.toLowerCase();
   const haystack = [record.contractNumber, record.propertyReference, record.propertyLabel, record.tenantName, record.landlordName].join(' ').toLowerCase();
   if (query && !haystack.includes(query)) return false;
-  if (filters.status && record.status !== filters.status) return false;
   if (filters.result && record.result !== filters.result) return false;
   if (filters.start && String(record.terminationDate || '') < filters.start) return false;
   if (filters.end && String(record.terminationDate || '') > filters.end) return false;
@@ -79,7 +82,7 @@ export async function renderLeaseTerminations(root) {
     <section class="panel termination-filter-panel">
       <div class="termination-filter-row">
         <label class="field termination-search">Buscar<input type="search" data-filter="query" placeholder="Contrato, imóvel, referência ou inquilino"></label>
-        <label class="field">Status<select data-filter="status"><option value="">Todos</option>${Object.entries(STATUS).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></label>
+        <label class="field">Status<select data-filter="status"><option value="">Todos ativos</option>${Object.entries(STATUS).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></label>
         <label class="field">Resultado<select data-filter="result"><option value="">Todos</option><option value="TENANT_PAYS">Cobrar inquilino</option><option value="TENANT_RECEIVES">Ressarcir inquilino</option><option value="SETTLED">Sem saldo</option></select></label>
         <label class="field">De<input type="date" data-filter="start"></label>
         <label class="field">Até<input type="date" data-filter="end"></label>
@@ -90,7 +93,7 @@ export async function renderLeaseTerminations(root) {
     <section class="panel termination-list-panel">
       <div class="termination-list-meta">
         <strong data-count>0 rescisões</strong>
-        <span>Para alterar status ou dados do cálculo, abra a rescisão em <strong>Editar</strong>.</span>
+        <span>Canceladas ficam ocultas por padrão. Para alterar status ou dados, abra a rescisão em <strong>Editar</strong>.</span>
       </div>
       <div class="table-scroll">
         <table class="termination-table">
