@@ -1,4 +1,4 @@
-import { deleteLeaseTermination, listLeaseTerminations, updateLeaseTerminationStatus } from '../../services/lease-termination-records.service.js';
+import { deleteLeaseTermination, listLeaseTerminations } from '../../services/lease-termination-records.service.js';
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -26,26 +26,29 @@ function resultLabel(value) {
   return 'Sem saldo';
 }
 
-function statusOptions(selected) {
-  return Object.entries(STATUS).map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>`).join('');
+function statusClass(value) {
+  return {
+    CALCULADA: 'is-calculated',
+    EM_CONFERENCIA: 'is-review',
+    PENDENTE: 'is-pending',
+    FINALIZADA: 'is-finished',
+    CANCELADA: 'is-cancelled'
+  }[value] || 'is-calculated';
 }
 
 function row(record) {
+  const status = record.status || 'CALCULADA';
   return `
     <tr data-record-id="${record.id}">
-      <td><strong>${escapeHtml(record.contractNumber || 'Sem nº')}</strong><small>${escapeHtml(record.propertyReference || '')}</small></td>
-      <td><strong>${escapeHtml(record.propertyLabel || 'Imóvel não identificado')}</strong><small>${escapeHtml(record.tenantName || '—')}</small></td>
+      <td class="termination-contract-cell"><strong>${escapeHtml(record.contractNumber || 'Sem nº')}</strong><small>${escapeHtml(record.propertyReference || '')}</small></td>
+      <td class="termination-property-cell"><strong>${escapeHtml(record.propertyLabel || 'Imóvel não identificado')}</strong><small>${escapeHtml(record.tenantName || '—')}</small></td>
       <td>${formatDate(record.terminationDate)}</td>
-      <td><span class="termination-result ${record.result === 'TENANT_RECEIVES' ? 'is-credit' : ''}">${escapeHtml(resultLabel(record.result))}</span></td>
-      <td><strong>${money.format(Number(record.finalBalance || 0))}</strong></td>
-      <td>
-        <select class="row-status" data-status-id="${record.id}" aria-label="Status da rescisão ${escapeHtml(record.contractNumber || '')}">
-          ${statusOptions(record.status || 'CALCULADA')}
-        </select>
-      </td>
+      <td><span class="termination-result ${record.result === 'TENANT_RECEIVES' ? 'is-credit' : record.result === 'SETTLED' ? 'is-settled' : ''}">${escapeHtml(resultLabel(record.result))}</span></td>
+      <td class="termination-balance"><strong>${money.format(Number(record.finalBalance || 0))}</strong></td>
+      <td><span class="termination-status ${statusClass(status)}">${escapeHtml(STATUS[status] || STATUS.CALCULADA)}</span></td>
       <td class="row-actions">
-        <button type="button" class="table-action" data-edit-id="${record.id}">Editar</button>
-        <button type="button" class="table-action danger" data-delete-id="${record.id}">Excluir</button>
+        <button type="button" class="table-action primary-action" data-edit-id="${record.id}" aria-label="Editar rescisão do contrato ${escapeHtml(record.contractNumber || '')}">Editar</button>
+        <button type="button" class="table-action danger" data-delete-id="${record.id}" aria-label="Excluir rescisão do contrato ${escapeHtml(record.contractNumber || '')}">Excluir</button>
       </td>
     </tr>
   `;
@@ -85,7 +88,10 @@ export async function renderLeaseTerminations(root) {
     </section>
 
     <section class="panel termination-list-panel">
-      <div class="termination-list-meta"><strong data-count>0 rescisões</strong><span>Atualize o status diretamente na linha.</span></div>
+      <div class="termination-list-meta">
+        <strong data-count>0 rescisões</strong>
+        <span>Para alterar status ou dados do cálculo, abra a rescisão em <strong>Editar</strong>.</span>
+      </div>
       <div class="table-scroll">
         <table class="termination-table">
           <thead><tr><th>Contrato</th><th>Imóvel / inquilino</th><th>Rescisão</th><th>Resultado</th><th>Saldo</th><th>Status</th><th>Ações</th></tr></thead>
@@ -149,24 +155,6 @@ export async function renderLeaseTerminations(root) {
     } catch (cause) {
       error.textContent = cause.message || 'Não foi possível excluir a rescisão.';
       remove.disabled = false;
-    }
-  });
-
-  tbody.addEventListener('change', async (event) => {
-    const select = event.target.closest('[data-status-id]');
-    if (!select) return;
-    const record = records.find((item) => item.id === select.dataset.statusId);
-    if (!record) return;
-    const previous = record.status;
-    select.disabled = true;
-    try {
-      await updateLeaseTerminationStatus(record.id, select.value);
-      record.status = select.value;
-    } catch (cause) {
-      select.value = previous || 'CALCULADA';
-      error.textContent = cause.message || 'Não foi possível alterar o status.';
-    } finally {
-      select.disabled = false;
     }
   });
 }
