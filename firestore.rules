@@ -1,97 +1,60 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function supportedProvider() {
-      return signedIn() && request.auth.token.firebase.sign_in_provider in ['google.com', 'password'];
-    }
+    function supportedProvider() { return signedIn() && request.auth.token.firebase.sign_in_provider in ['google.com', 'password']; }
     function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
     function hasProfile() { return supportedProvider() && exists(userPath(request.auth.uid)); }
     function profile() { return get(userPath(request.auth.uid)); }
     function activeUser() { return hasProfile() && profile().data.active == true; }
     function isSuperAdmin() { return activeUser() && profile().data.role == 'SUPER_ADMIN'; }
-    function permissionPath(moduleName) {
-      return /databases/$(database)/documents/permissions/$(request.auth.uid + '__' + moduleName);
-    }
+    function permissionPath(moduleName) { return /databases/$(database)/documents/permissions/$(request.auth.uid + '__' + moduleName); }
     function ownPermissionSlot(permissionId) {
       return activeUser() && permissionId in [
-        request.auth.uid + '__dashboard',
-        request.auth.uid + '__users',
-        request.auth.uid + '__permissions',
-        request.auth.uid + '__audit',
-        request.auth.uid + '__owners',
-        request.auth.uid + '__tenants',
-        request.auth.uid + '__properties',
-        request.auth.uid + '__leases',
-        request.auth.uid + '__inspections',
-        request.auth.uid + '__maintenance',
-        request.auth.uid + '__finance',
+        request.auth.uid + '__dashboard', request.auth.uid + '__users', request.auth.uid + '__permissions',
+        request.auth.uid + '__audit', request.auth.uid + '__clients', request.auth.uid + '__owners',
+        request.auth.uid + '__tenants', request.auth.uid + '__properties', request.auth.uid + '__leases',
+        request.auth.uid + '__inspections', request.auth.uid + '__maintenance', request.auth.uid + '__finance',
         request.auth.uid + '__documents'
       ];
     }
     function explicitPermission(moduleName, acceptedLevels) {
-      return activeUser()
-        && exists(permissionPath(moduleName))
+      return activeUser() && exists(permissionPath(moduleName))
         && get(permissionPath(moduleName)).data.userId == request.auth.uid
         && get(permissionPath(moduleName)).data.module == moduleName
         && get(permissionPath(moduleName)).data.level in acceptedLevels;
     }
-    function canRead(moduleName) {
-      return isSuperAdmin() || explicitPermission(moduleName, ['READ', 'EDIT']);
-    }
-    function canEdit(moduleName) {
-      return isSuperAdmin() || explicitPermission(moduleName, ['EDIT']);
-    }
+    function canRead(moduleName) { return isSuperAdmin() || explicitPermission(moduleName, ['READ', 'EDIT']); }
+    function canEdit(moduleName) { return isSuperAdmin() || explicitPermission(moduleName, ['EDIT']); }
     function ownLastAccessUpdate(userId) {
-      return supportedProvider()
-        && request.auth.uid == userId
-        && resource.data.active == true
+      return supportedProvider() && request.auth.uid == userId && resource.data.active == true
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastAccessAt'])
         && request.resource.data.lastAccessAt == request.time;
     }
     function ownProfileUpdate(userId) {
-      return supportedProvider()
-        && request.auth.uid == userId
-        && resource.data.active == true
+      return supportedProvider() && request.auth.uid == userId && resource.data.active == true
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'birthDate', 'photoURL', 'updatedAt'])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() >= 2
-        && request.resource.data.name.size() <= 120
-        && request.resource.data.phone is string
-        && request.resource.data.phone.size() <= 30
-        && request.resource.data.birthDate is string
-        && request.resource.data.birthDate.size() <= 10
-        && request.resource.data.photoURL is string
-        && request.resource.data.photoURL.size() <= 2048
+        && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 120
+        && request.resource.data.phone is string && request.resource.data.phone.size() <= 30
+        && request.resource.data.birthDate is string && request.resource.data.birthDate.size() <= 10
+        && request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 2048
         && request.resource.data.updatedAt == request.time;
     }
-
     match /users/{userId} {
       allow get: if (supportedProvider() && request.auth.uid == userId) || canRead('users') || canRead('permissions');
       allow list: if canRead('users') || canRead('permissions');
       allow update: if ownLastAccessUpdate(userId) || ownProfileUpdate(userId);
       allow create, delete: if false;
     }
-
     match /permissions/{permissionId} {
       allow get: if isSuperAdmin() || canRead('permissions') || ownPermissionSlot(permissionId);
       allow list: if isSuperAdmin() || canRead('permissions');
       allow create, update, delete: if false;
     }
-
-    match /auditLogs/{logId} {
-      allow read: if canRead('audit');
-      allow create, update, delete: if false;
-    }
-
-    match /settings/{documentId} {
-      allow read: if activeUser();
-      allow create, update, delete: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /auditLogs/{logId} { allow read: if canRead('audit'); allow create, update, delete: if false; }
+    match /clients/{clientId} { allow read: if canRead('clients'); allow create, update: if canEdit('clients'); allow delete: if false; }
+    match /properties/{propertyId} { allow read: if canRead('properties'); allow create, update: if canEdit('properties'); allow delete: if false; }
+    match /settings/{documentId} { allow read: if activeUser(); allow create, update, delete: if false; }
+    match /{document=**} { allow read, write: if false; }
   }
 }
