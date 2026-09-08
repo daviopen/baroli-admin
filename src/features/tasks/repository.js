@@ -36,7 +36,8 @@ function cleanChecklist(items = []) {
     .slice(0, 40);
 }
 
-function cleanLink(value = {}) {
+function cleanLink(value) {
+  if (!value || typeof value !== 'object') return null;
   const id = cleanText(value.id, 180);
   if (!id) return null;
   return { id, label: cleanText(value.label, 220) };
