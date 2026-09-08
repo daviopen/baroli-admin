@@ -7,6 +7,7 @@ export const MODULES = Object.freeze([
   { id: 'audit', label: 'Auditoria' },
   { id: 'clients', label: 'Clientes' },
   { id: 'properties', label: 'Imóveis' },
+  { id: 'lease-termination', label: 'Cálculo de Rescisão' },
   { id: 'leases', label: 'Contratos / Locações' },
   { id: 'inspections', label: 'Vistorias' },
   { id: 'maintenance', label: 'Manutenções / Ocorrências' },
