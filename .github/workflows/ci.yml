@@ -89,8 +89,8 @@ jobs:
           NODE
       - name: Build application
         run: npm run build
-      - name: Deploy Hosting, Firestore and Functions
-        run: npx firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting,firestore:rules,firestore:indexes,functions --non-interactive
+      - name: Deploy Hosting and Firestore
+        run: npx firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting,firestore:rules,firestore:indexes --non-interactive
       - name: Smoke test production runtime
         shell: bash
         run: |
