@@ -16,10 +16,18 @@ export function permissionAllowsAction(level, actionName) {
   return normalizedLevel === 'READ' && actionName === 'READ';
 }
 
+function legacyProfileAllowsNewModule(session, moduleName, actionName) {
+  if (moduleName !== 'tasks' || !session?.profile?.active) return false;
+  const profileType = String(session.profile.profileType || '').toUpperCase();
+  return ['GESTAO', 'ADMINISTRATIVO', 'CORRETOR'].includes(profileType) && ACTIONS.includes(actionName);
+}
+
 export function hasPermission(session, moduleName, actionName) {
   if (!session?.profile?.active) return false;
   if (isSuperAdmin(session.profile)) return true;
-  return permissionAllowsAction(session.permissions?.[moduleName], actionName);
+  const explicitLevel = session.permissions?.[moduleName];
+  if (explicitLevel) return permissionAllowsAction(explicitLevel, actionName);
+  return legacyProfileAllowsNewModule(session, moduleName, actionName);
 }
 
 export function canAccessModule(session, moduleName) {
