@@ -28,6 +28,13 @@ function validateName(name) {
   return normalized;
 }
 
+function inferProfileType(user = {}) {
+  if (user.profileType) return normalizeUserProfile(user.profileType);
+  if (user.role === 'SUPER_ADMIN') return 'ADM_SUPER';
+  if (user.role === 'ADMIN') return 'GESTAO';
+  return 'CORRETOR';
+}
+
 export function getUserManagementCapabilities(session) {
   return Object.freeze({
     canCreate: hasPermission(session, 'users', 'CREATE'),
@@ -47,8 +54,7 @@ export function filterUsers(users, filters = {}) {
       || normalizeText(user.email).includes(search);
     const matchesStatus = status === 'ALL'
       || (status === 'ACTIVE' ? user.active === true : user.active !== true);
-    const userProfile = user.profileType || (user.role === 'SUPER_ADMIN' ? 'ADM_SUPER' : 'CORRETOR');
-    const matchesProfile = profile === 'ALL' || normalizeUserProfile(userProfile) === profile;
+    const matchesProfile = profile === 'ALL' || inferProfileType(user) === profile;
     return matchesSearch && matchesStatus && matchesProfile;
   });
 }
@@ -76,16 +82,12 @@ export async function createManagedUser(input, session) {
 
   const name = validateName(input.name);
   const email = validateEmail(input.email);
-  const profileType = normalizeUserProfile(input.profileType);
-  const profileDefinition = getUserProfileDefinition(profileType);
-  const request = {
-    name,
-    email,
-    profileType,
-    role: profileDefinition.systemRole
-  };
+  const request = { name, email };
 
   if (capabilities.canManagePermissions) {
+    const profileType = normalizeUserProfile(input.profileType);
+    request.profileType = profileType;
+    request.role = getUserProfileDefinition(profileType).systemRole;
     request.permissions = buildPermissionPayload(
       input.permissionLevels || getProfilePermissionLevels(profileType)
     );
