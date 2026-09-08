@@ -12,19 +12,19 @@ export const USER_PROFILES = Object.freeze({
   GESTAO: Object.freeze({
     id: 'GESTAO',
     label: 'GESTÃO',
-    description: 'Visão ampla da operação, contratos, financeiro, imóveis e acompanhamento da equipe.',
+    description: 'Visão ampla da operação, clientes, contratos, financeiro, imóveis e acompanhamento da equipe.',
     systemRole: 'USER'
   }),
   ADMINISTRATIVO: Object.freeze({
     id: 'ADMINISTRATIVO',
     label: 'ADMINISTRATIVO',
-    description: 'Rotina administrativa, contratos, documentos, vistorias, ocorrências e financeiro.',
+    description: 'Rotina administrativa, clientes, contratos, documentos, vistorias, ocorrências e financeiro.',
     systemRole: 'USER'
   }),
   CORRETOR: Object.freeze({
     id: 'CORRETOR',
     label: 'CORRETOR',
-    description: 'Acesso operacional a imóveis, proprietários, inquilinos e contratos, sem administração do sistema.',
+    description: 'Acesso operacional a clientes, imóveis e contratos, sem administração do sistema.',
     systemRole: 'USER'
   })
 });
@@ -34,15 +34,15 @@ const PROFILE_PERMISSION_PRESETS = Object.freeze({
     Object.fromEntries(MODULES.map(({ id }) => [id, 'EDIT']))
   ),
   GESTAO: Object.freeze({
-    dashboard: 'READ', users: 'READ', audit: 'READ', owners: 'EDIT', tenants: 'EDIT', properties: 'EDIT',
+    dashboard: 'READ', users: 'READ', audit: 'READ', clients: 'EDIT', properties: 'EDIT',
     leases: 'EDIT', inspections: 'EDIT', maintenance: 'EDIT', finance: 'EDIT', documents: 'EDIT'
   }),
   ADMINISTRATIVO: Object.freeze({
-    dashboard: 'READ', users: 'NONE', audit: 'NONE', owners: 'READ', tenants: 'EDIT', properties: 'READ',
+    dashboard: 'READ', users: 'NONE', audit: 'NONE', clients: 'EDIT', properties: 'READ',
     leases: 'EDIT', inspections: 'EDIT', maintenance: 'EDIT', finance: 'EDIT', documents: 'EDIT'
   }),
   CORRETOR: Object.freeze({
-    dashboard: 'READ', users: 'NONE', audit: 'NONE', owners: 'READ', tenants: 'READ', properties: 'EDIT',
+    dashboard: 'READ', users: 'NONE', audit: 'NONE', clients: 'READ', properties: 'EDIT',
     leases: 'READ', inspections: 'READ', maintenance: 'READ', finance: 'NONE', documents: 'READ'
   })
 });
