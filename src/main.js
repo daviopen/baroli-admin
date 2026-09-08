@@ -5,6 +5,7 @@ import { renderAudit } from './features/audit/view.js';
 import { friendlyAuthError, sendPasswordReset, signInWithEmail, signInWithGoogle, signOutSafely, watchAuth } from './features/auth/auth.js';
 import { renderDashboard } from './features/dashboard/view.js';
 import { renderLeaseTermination } from './features/lease-termination/view.js';
+import { renderProfile } from './features/profile/view.js';
 import { renderUsers } from './features/users/view.js';
 
 const loginView = document.querySelector('#login-view');
@@ -13,16 +14,57 @@ const content = document.querySelector('#content');
 const navigation = document.querySelector('#navigation');
 const errorBox = document.querySelector('#login-error');
 const setupWarning = document.querySelector('#setup-warning');
+const sidebarProfileLink = document.querySelector('#sidebar-profile-link');
+const mobileMenuButton = document.querySelector('#mobile-menu-button');
+const mobileBackdrop = document.querySelector('#mobile-backdrop');
 let session;
 
 const routes = {
   dashboard: async () => { content.innerHTML = renderDashboard(session); },
   users: () => renderUsers(content),
   audit: () => renderAudit(content),
-  leaseTermination: () => renderLeaseTermination(content)
+  leaseTermination: () => renderLeaseTermination(content),
+  profile: () => renderProfile(content)
 };
 
+function profileInitials(profile = session?.profile, authUser = session?.authUser) {
+  const source = String(profile?.name || authUser?.displayName || authUser?.email || 'U').trim();
+  return source.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'U';
+}
+
+function profileLabel(profile = session?.profile) {
+  if (profile?.profileType) return String(profile.profileType).replaceAll('_', '-');
+  if (profile?.role === 'SUPER_ADMIN') return 'ADM-SUPER';
+  return profile?.role || 'Conta';
+}
+
+function renderShellProfile(profile = session?.profile) {
+  if (!session) return;
+  const name = profile?.name || session.authUser?.displayName || 'Meu perfil';
+  const photoURL = profile?.photoURL || session.authUser?.photoURL || '';
+  const fallback = profileInitials(profile);
+  document.querySelector('#shell-profile-name').textContent = name;
+  document.querySelector('#shell-profile-role').textContent = profileLabel(profile);
+
+  const avatar = document.querySelector('#shell-avatar');
+  avatar.innerHTML = photoURL
+    ? `<img src="${photoURL.replaceAll('"', '&quot;')}" alt="" referrerpolicy="no-referrer"><span class="sr-only">${fallback}</span>`
+    : `<span id="shell-avatar-fallback">${fallback}</span>`;
+
+  const mobileProfile = document.querySelector('#mobile-profile-link');
+  mobileProfile.innerHTML = photoURL
+    ? `<img src="${photoURL.replaceAll('"', '&quot;')}" alt="" referrerpolicy="no-referrer">`
+    : `<span id="mobile-profile-fallback">${fallback}</span>`;
+}
+
+function setMobileMenu(open) {
+  document.body.classList.toggle('shell-menu-open', open);
+  mobileMenuButton?.setAttribute('aria-expanded', String(open));
+  mobileMenuButton?.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+}
+
 function showLogin(message = '') {
+  setMobileMenu(false);
   appView.hidden = true;
   loginView.hidden = false;
   errorBox.textContent = message;
@@ -34,6 +76,7 @@ function showApp(currentSession) {
   appView.hidden = false;
   errorBox.textContent = '';
   renderNavigation();
+  renderShellProfile();
   navigate(location.hash.replace('#/', '') || 'dashboard');
 }
 
@@ -46,11 +89,16 @@ async function navigate(route) {
   const requested = route === 'permissions' ? 'users' : route;
   const target = routes[requested] ? requested : 'dashboard';
   if (route === 'permissions') history.replaceState(null, '', '#/users');
-  if (!canAccessModule(session, target)) {
+  const selfServiceRoute = target === 'profile';
+
+  if (!selfServiceRoute && !canAccessModule(session, target)) {
     content.innerHTML = '<section class="panel"><h1>Acesso não autorizado</h1><p>Você não possui permissão para este módulo.</p></section>';
     return;
   }
+
   navigation.querySelectorAll('a').forEach((link) => link.classList.toggle('active', link.dataset.route === target));
+  sidebarProfileLink?.classList.toggle('active', selfServiceRoute);
+  setMobileMenu(false);
   content.innerHTML = '<div class="loading">Carregando...</div>';
   try {
     await routes[target]();
@@ -65,6 +113,15 @@ function reportAuthFailure(context, error) {
 }
 
 window.addEventListener('hashchange', () => session && navigate(location.hash.replace('#/', '')));
+window.addEventListener('baroli:profile-updated', (event) => {
+  if (!session) return;
+  session.profile = { ...session.profile, ...(event.detail || {}) };
+  renderShellProfile(session.profile);
+});
+
+mobileMenuButton?.addEventListener('click', () => setMobileMenu(!document.body.classList.contains('shell-menu-open')));
+mobileBackdrop?.addEventListener('click', () => setMobileMenu(false));
+window.addEventListener('keydown', (event) => { if (event.key === 'Escape') setMobileMenu(false); });
 
 document.querySelector('#login-form').addEventListener('submit', async (event) => {
   event.preventDefault();

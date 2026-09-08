@@ -10,7 +10,9 @@
   <link rel="icon" href="https://widesysw2689.s3.amazonaws.com/images/logo-1x1.jpg">
   <link rel="stylesheet" href="/styles/tokens.css">
   <link rel="stylesheet" href="/styles/app.css">
+  <link rel="stylesheet" href="/styles/shell.css">
   <link rel="stylesheet" href="/styles/users.css">
+  <link rel="stylesheet" href="/styles/profile.css">
   <link rel="stylesheet" href="/styles/lease-termination.css">
   <script src="/config/runtime-config.js"></script>
   <script>
@@ -64,7 +66,16 @@
   </main>
 
   <div id="app-view" class="app-shell" hidden>
-    <aside class="sidebar">
+    <header class="mobile-appbar" aria-label="Navegação móvel">
+      <button id="mobile-menu-button" class="mobile-menu-button" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button>
+      <div class="mobile-brand">
+        <img src="https://widesysw2689.s3.amazonaws.com/images/logo-1x1.jpg" alt="" width="32" height="32">
+        <strong>Baroli Admin</strong>
+      </div>
+      <a id="mobile-profile-link" class="mobile-profile-button" href="#/profile" aria-label="Abrir meu perfil"><span id="mobile-profile-fallback">U</span></a>
+    </header>
+
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
         <img
           class="brand-logo small"
@@ -74,11 +85,19 @@
           height="42"
           decoding="async"
         >
-        <div><strong>Baroli</strong><small>Admin</small></div>
+        <div><strong>Baroli</strong><small>Administração</small></div>
       </div>
       <nav id="navigation"></nav>
-      <button id="logout" class="secondary">Sair</button>
+      <div class="sidebar-account">
+        <a class="sidebar-profile-link" id="sidebar-profile-link" href="#/profile">
+          <span class="shell-avatar" id="shell-avatar"><span id="shell-avatar-fallback">U</span></span>
+          <span class="shell-profile-copy"><strong id="shell-profile-name">Meu perfil</strong><small id="shell-profile-role">Conta</small></span>
+          <span class="shell-profile-chevron" aria-hidden="true">›</span>
+        </a>
+        <button id="logout" class="secondary sidebar-logout">Sair</button>
+      </div>
     </aside>
+    <button id="mobile-backdrop" class="mobile-backdrop" type="button" aria-label="Fechar menu"></button>
     <section class="content-shell">
       <div id="content"></div>
     </section>
