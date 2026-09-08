@@ -3,7 +3,10 @@ import { sendPasswordReset } from '../features/auth/auth.js';
 import {
   DEFAULT_USER_PERMISSION_LEVELS,
   buildPermissionLevels,
-  buildPermissionPayload
+  buildPermissionPayload,
+  getProfilePermissionLevels,
+  getUserProfileDefinition,
+  normalizeUserProfile
 } from '../features/permissions/permission-levels.js';
 import { callAdminFunction, getUserPermissions, listUsers } from '../repositories/admin.repository.js';
 
@@ -25,11 +28,6 @@ function validateName(name) {
   return normalized;
 }
 
-function normalizeRole(role) {
-  const normalized = String(role || 'USER').trim().toUpperCase();
-  return ['USER', 'ADMIN', 'SUPER_ADMIN'].includes(normalized) ? normalized : 'USER';
-}
-
 export function getUserManagementCapabilities(session) {
   return Object.freeze({
     canCreate: hasPermission(session, 'users', 'CREATE'),
@@ -41,6 +39,7 @@ export function getUserManagementCapabilities(session) {
 export function filterUsers(users, filters = {}) {
   const search = normalizeText(filters.search);
   const status = String(filters.status || 'ALL').toUpperCase();
+  const profile = String(filters.profile || 'ALL').toUpperCase();
 
   return users.filter((user) => {
     const matchesSearch = !search
@@ -48,7 +47,9 @@ export function filterUsers(users, filters = {}) {
       || normalizeText(user.email).includes(search);
     const matchesStatus = status === 'ALL'
       || (status === 'ACTIVE' ? user.active === true : user.active !== true);
-    return matchesSearch && matchesStatus;
+    const userProfile = user.profileType || (user.role === 'SUPER_ADMIN' ? 'ADM_SUPER' : 'CORRETOR');
+    const matchesProfile = profile === 'ALL' || normalizeUserProfile(userProfile) === profile;
+    return matchesSearch && matchesStatus && matchesProfile;
   });
 }
 
@@ -65,16 +66,8 @@ export function getDefaultUserPermissionLevels() {
   return { ...DEFAULT_USER_PERMISSION_LEVELS };
 }
 
-export async function saveUserAccess(userId, role, permissionLevels, session) {
-  if (!isSuperAdmin(session?.profile)) {
-    throw new Error('Somente SUPER_ADMIN pode alterar perfis e permissões.');
-  }
-  if (!userId) throw new Error('Usuário inválido.');
-  return callAdminFunction('adminUpdateUser', {
-    userId,
-    role: normalizeRole(role),
-    permissions: buildPermissionPayload(permissionLevels)
-  });
+export function getPermissionLevelsForProfile(profile) {
+  return getProfilePermissionLevels(profile);
 }
 
 export async function createManagedUser(input, session) {
@@ -83,10 +76,19 @@ export async function createManagedUser(input, session) {
 
   const name = validateName(input.name);
   const email = validateEmail(input.email);
-  const request = { name, email, role: 'USER' };
+  const profileType = normalizeUserProfile(input.profileType);
+  const profileDefinition = getUserProfileDefinition(profileType);
+  const request = {
+    name,
+    email,
+    profileType,
+    role: profileDefinition.systemRole
+  };
 
-  if (input.permissionLevels && capabilities.canManagePermissions) {
-    request.permissions = buildPermissionPayload(input.permissionLevels);
+  if (capabilities.canManagePermissions) {
+    request.permissions = buildPermissionPayload(
+      input.permissionLevels || getProfilePermissionLevels(profileType)
+    );
   }
 
   const created = await callAdminFunction('adminCreateUser', request);
@@ -112,8 +114,14 @@ export async function updateManagedUser(userId, input, session) {
     name: validateName(input.name),
     active: input.active !== false
   };
-  if (input.permissionLevels && capabilities.canManagePermissions) {
-    request.permissions = buildPermissionPayload(input.permissionLevels);
+
+  if (capabilities.canManagePermissions) {
+    const profileType = normalizeUserProfile(input.profileType);
+    request.profileType = profileType;
+    request.role = getUserProfileDefinition(profileType).systemRole;
+    request.permissions = buildPermissionPayload(
+      input.permissionLevels || getProfilePermissionLevels(profileType)
+    );
   }
 
   await callAdminFunction('adminUpdateUser', request);
