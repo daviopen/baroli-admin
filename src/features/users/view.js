@@ -1,20 +1,15 @@
-import { MODULES } from '../../constants/modules.js';
 import { USER_PROFILES, getUserProfileDefinition, normalizeUserProfile } from '../permissions/permission-levels.js';
 import { getCurrentSession } from '../../services/session.service.js';
 import {
   createManagedUser,
   filterUsers,
-  getDefaultUserPermissionLevels,
   getPermissionLevelsForProfile,
   getUserManagementCapabilities,
-  loadUserPermissionLevels,
   loadUsers,
   requestManagedUserPasswordReset,
   setManagedUserActive,
   updateManagedUser
 } from '../../services/user-admin.service.js';
-
-const PERMISSION_LEVEL_LABELS = Object.freeze({ NONE: 'Sem acesso', READ: 'Leitura', EDIT: 'Edição' });
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>'"]/g, (char) => ({
@@ -53,35 +48,13 @@ function profileOptions(selectedProfile) {
   `).join('');
 }
 
-function permissionFields(levels) {
-  return MODULES.map(({ id, label }) => {
-    const selected = levels[id] || 'NONE';
-    return `
-      <label class="permission-card">
-        <span class="permission-card__label">${escapeHtml(label)}</span>
-        <select data-permission-module="${escapeHtml(id)}" aria-label="Permissão para ${escapeHtml(label)}">
-          ${Object.entries(PERMISSION_LEVEL_LABELS).map(([value, text]) => `
-            <option value="${value}" ${selected === value ? 'selected' : ''}>${text}</option>
-          `).join('')}
-        </select>
-      </label>`;
-  }).join('');
-}
-
-function readPermissionLevels(dialog) {
-  return Object.fromEntries(
-    [...dialog.querySelectorAll('[data-permission-module]')].map((select) => [select.dataset.permissionModule, select.value])
-  );
-}
-
 export async function renderUsers(container) {
   const session = getCurrentSession();
   const capabilities = getUserManagementCapabilities(session);
   const state = {
     users: [],
     filters: { search: '', status: 'ALL', profile: 'ALL' },
-    editingUser: null,
-    permissionSource: 'PROFILE'
+    editingUser: null
   };
 
   container.innerHTML = `
@@ -89,7 +62,7 @@ export async function renderUsers(container) {
       <div>
         <p class="eyebrow">Administração</p>
         <h1>Usuários e acessos</h1>
-        <p>Cadastre a equipe, defina o perfil de trabalho e ajuste as permissões quando necessário.</p>
+        <p>Cadastre a equipe e defina o perfil de trabalho de cada usuário.</p>
       </div>
       ${capabilities.canCreate ? '<button class="primary users-new-button" id="new-user" type="button">+ Novo usuário</button>' : ''}
     </section>
@@ -126,7 +99,7 @@ export async function renderUsers(container) {
           <div>
             <p class="eyebrow">Equipe Baroli</p>
             <h2 id="user-dialog-title">Novo usuário</h2>
-            <p id="user-dialog-subtitle">Dados pessoais, perfil e permissões em um único cadastro.</p>
+            <p id="user-dialog-subtitle">Dados pessoais e perfil de acesso em um único cadastro.</p>
           </div>
           <button class="dialog-close" id="user-dialog-close" type="button" aria-label="Fechar">×</button>
         </div>
@@ -151,26 +124,11 @@ export async function renderUsers(container) {
           <section class="user-editor-section" aria-labelledby="user-profile-title">
             <div class="section-heading">
               <span class="section-step">2</span>
-              <div><h3 id="user-profile-title">Perfil de acesso</h3><p>Escolha o perfil que melhor representa a função da pessoa na Baroli.</p></div>
+              <div><h3 id="user-profile-title">Perfil de acesso</h3><p>Escolha o perfil que melhor representa a função da pessoa na Baroli. Os acessos são definidos automaticamente pelo perfil.</p></div>
             </div>
             <div class="profile-options" id="user-profile-options"></div>
-          </section>
-
-          <section class="user-editor-section permissions-section" aria-labelledby="user-permissions-title">
-            <div class="section-heading permissions-heading">
-              <span class="section-step">3</span>
-              <div><h3 id="user-permissions-title">Permissões por funcionalidade</h3><p>O perfil acima aplica uma configuração recomendada. Você pode personalizar casos específicos.</p></div>
-            </div>
-            <div class="permission-mode-bar">
-              <div><strong id="permission-mode-title">Permissões do perfil</strong><small id="permission-mode-description">Usando o padrão recomendado para o perfil selecionado.</small></div>
-              <button class="secondary compact" id="customize-permissions" type="button">Personalizar acessos</button>
-            </div>
-            <fieldset class="permissions-fieldset" id="user-permissions-fieldset" disabled>
-              <legend class="sr-only">Permissões de acesso</legend>
-              <div class="permissions-grid" id="user-permissions"></div>
-            </fieldset>
           </section>` : `
-          <section class="user-editor-section"><div class="section-heading"><span class="section-step">2</span><div><h3>Perfil e permissões</h3><p>Somente ADM-SUPER pode alterar perfil e permissões de acesso.</p></div></div></section>`}
+          <section class="user-editor-section"><div class="section-heading"><span class="section-step">2</span><div><h3>Perfil de acesso</h3><p>Somente ADM-SUPER pode alterar o perfil de acesso.</p></div></div></section>`}
 
           <div class="form-feedback" id="user-form-feedback" role="alert" hidden></div>
         </div>
@@ -190,8 +148,6 @@ export async function renderUsers(container) {
   const count = container.querySelector('#users-count');
   const feedback = container.querySelector('#user-form-feedback');
   const submitButton = container.querySelector('#user-submit');
-  const permissionsRoot = container.querySelector('#user-permissions');
-  const permissionsFieldset = container.querySelector('#user-permissions-fieldset');
   const profileRoot = container.querySelector('#user-profile-options');
 
   function toast(message, type = 'success') {
@@ -231,7 +187,9 @@ export async function renderUsers(container) {
   }
 
   async function refresh() {
-    loading.hidden = false; empty.hidden = true; tableWrap.hidden = true;
+    loading.hidden = false;
+    empty.hidden = true;
+    tableWrap.hidden = true;
     try {
       state.users = await loadUsers();
       updateSummary();
@@ -240,7 +198,9 @@ export async function renderUsers(container) {
       toast(error?.message || 'Não foi possível carregar os usuários.', 'error');
       empty.textContent = 'Não foi possível carregar os usuários.';
       empty.hidden = false;
-    } finally { loading.hidden = true; }
+    } finally {
+      loading.hidden = true;
+    }
   }
 
   function selectedProfile() {
@@ -252,28 +212,11 @@ export async function renderUsers(container) {
     profileRoot.innerHTML = profileOptions(profileId);
   }
 
-  function setPermissions(levels) {
-    if (!permissionsRoot) return;
-    permissionsRoot.innerHTML = permissionFields(levels);
-  }
-
-  function setPermissionMode(mode) {
-    if (!permissionsFieldset) return;
-    state.permissionSource = mode;
-    const custom = mode === 'CUSTOM';
-    permissionsFieldset.disabled = !custom;
-    container.querySelector('#permission-mode-title').textContent = custom ? 'Acessos personalizados' : 'Permissões do perfil';
-    container.querySelector('#permission-mode-description').textContent = custom
-      ? 'Os níveis abaixo foram liberados para edição manual.'
-      : 'Usando o padrão recomendado para o perfil selecionado.';
-    container.querySelector('#customize-permissions').textContent = custom ? 'Usar padrão do perfil' : 'Personalizar acessos';
-  }
-
-  async function openUserDialog(user = null) {
+  function openUserDialog(user = null) {
     state.editingUser = user;
     clearFeedback();
     container.querySelector('#user-dialog-title').textContent = user ? 'Editar usuário' : 'Novo usuário';
-    container.querySelector('#user-dialog-subtitle').textContent = user ? 'Atualize dados pessoais, perfil e acessos.' : 'Cadastre a pessoa e configure seu acesso à Baroli.';
+    container.querySelector('#user-dialog-subtitle').textContent = user ? 'Atualize os dados pessoais e o perfil de acesso.' : 'Cadastre a pessoa e defina seu perfil de acesso à Baroli.';
     container.querySelector('#user-name').value = user?.name || '';
     const emailInput = container.querySelector('#user-email');
     emailInput.value = user?.email || '';
@@ -283,23 +226,16 @@ export async function renderUsers(container) {
     container.querySelector('#user-active').checked = user?.active !== false;
 
     if (capabilities.canManagePermissions) {
-      const profileId = user ? userProfileId(user) : 'CORRETOR';
-      setProfileCards(profileId);
-      permissionsRoot.innerHTML = '<div class="loading permission-loading">Carregando permissões...</div>';
-      try {
-        setPermissions(user ? await loadUserPermissionLevels(user.uid || user.id) : getPermissionLevelsForProfile(profileId));
-      } catch (error) {
-        setPermissions(user ? getDefaultUserPermissionLevels() : getPermissionLevelsForProfile(profileId));
-        showFeedback(error?.message || 'Não foi possível carregar as permissões atuais.');
-      }
-      setPermissionMode(user ? 'CUSTOM' : 'PROFILE');
+      setProfileCards(user ? userProfileId(user) : 'CORRETOR');
     }
 
     dialog.showModal();
     container.querySelector('#user-name').focus();
   }
 
-  function findUser(userId) { return state.users.find((user) => String(user.uid || user.id) === String(userId)); }
+  function findUser(userId) {
+    return state.users.find((user) => String(user.uid || user.id) === String(userId));
+  }
 
   container.querySelector('#new-user')?.addEventListener('click', () => openUserDialog());
   container.querySelector('#user-dialog-close').addEventListener('click', () => dialog.close());
@@ -313,17 +249,9 @@ export async function renderUsers(container) {
   profileRoot?.addEventListener('change', (event) => {
     const input = event.target.closest('input[name="profileType"]');
     if (!input) return;
-    profileRoot.querySelectorAll('[data-profile-card]').forEach((card) => card.classList.toggle('is-selected', card.dataset.profileCard === input.value));
-    if (state.permissionSource === 'PROFILE') setPermissions(getPermissionLevelsForProfile(input.value));
-  });
-
-  container.querySelector('#customize-permissions')?.addEventListener('click', () => {
-    if (state.permissionSource === 'CUSTOM') {
-      setPermissions(getPermissionLevelsForProfile(selectedProfile()));
-      setPermissionMode('PROFILE');
-    } else {
-      setPermissionMode('CUSTOM');
-    }
+    profileRoot.querySelectorAll('[data-profile-card]').forEach((card) => {
+      card.classList.toggle('is-selected', card.dataset.profileCard === input.value);
+    });
   });
 
   body.addEventListener('click', async (event) => {
@@ -333,7 +261,10 @@ export async function renderUsers(container) {
     if (!user) return;
 
     try {
-      if (button.dataset.action === 'edit') { await openUserDialog(user); return; }
+      if (button.dataset.action === 'edit') {
+        openUserDialog(user);
+        return;
+      }
       if (button.dataset.action === 'password') {
         if (!confirm(`Enviar e-mail de redefinição de senha para ${user.email}?`)) return;
         button.disabled = true;
@@ -351,7 +282,9 @@ export async function renderUsers(container) {
       }
     } catch (error) {
       toast(error?.message || 'A operação não pôde ser concluída.', 'error');
-    } finally { button.disabled = false; }
+    } finally {
+      button.disabled = false;
+    }
   });
 
   container.querySelector('#user-form').addEventListener('submit', async (event) => {
@@ -361,12 +294,13 @@ export async function renderUsers(container) {
     const originalLabel = submitButton.textContent;
     submitButton.textContent = 'Salvando...';
 
+    const profileType = capabilities.canManagePermissions ? selectedProfile() : undefined;
     const payload = {
       name: container.querySelector('#user-name').value,
       email: container.querySelector('#user-email').value,
       active: state.editingUser ? container.querySelector('#user-active').checked : true,
-      profileType: capabilities.canManagePermissions ? selectedProfile() : undefined,
-      permissionLevels: capabilities.canManagePermissions ? readPermissionLevels(dialog) : undefined
+      profileType,
+      permissionLevels: profileType ? getPermissionLevelsForProfile(profileType) : undefined
     };
 
     try {
@@ -375,7 +309,12 @@ export async function renderUsers(container) {
         toast('Usuário atualizado com sucesso.');
       } else {
         const result = await createManagedUser(payload, session);
-        toast(result.passwordResetSent ? 'Usuário criado. O e-mail para definição de senha foi solicitado.' : `Usuário criado, mas o e-mail de senha não foi confirmado: ${result.passwordResetError}`, result.passwordResetSent ? 'success' : 'warning');
+        toast(
+          result.passwordResetSent
+            ? 'Usuário criado. O e-mail para definição de senha foi solicitado.'
+            : `Usuário criado, mas o e-mail de senha não foi confirmado: ${result.passwordResetError}`,
+          result.passwordResetSent ? 'success' : 'warning'
+        );
       }
       dialog.close();
       await refresh();
