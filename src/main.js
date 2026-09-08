@@ -9,6 +9,7 @@ import { renderLeaseTerminations } from './features/lease-termination/list.js';
 import { bindLeaseTerminationPersistence } from './features/lease-termination/persistence.js';
 import { renderLeaseTermination } from './features/lease-termination/view.js';
 import { renderProfile } from './features/profile/view.js';
+import { renderTasks } from './features/tasks/view.js';
 import { renderUsers } from './features/users/view.js';
 
 const loginView = document.querySelector('#login-view');
@@ -26,6 +27,7 @@ let uploadsInitialType = 'clients';
 
 const ICON_PATHS = {
   dashboard: 'M4 13h6V4H4v9zm0 7h6v-4H4v4zm10 0h6v-9h-6v9zm0-16v4h6V4h-6z',
+  tasks: 'M5 4h14v16H5V4zm3 4h8M8 12h5M8 16h7',
   uploads: 'M12 16V4m0 0L7 9m5-5 5 5M5 15v4h14v-4',
   users: 'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm7-1a4 4 0 010 8m2-13a4 4 0 010 8',
   audit: 'M9 11l2 2 4-4M5 4h14v16H5V4zm4-2h6v4H9V2z',
@@ -54,6 +56,7 @@ function allowedUploadTypes() {
 
 const routes = {
   dashboard: async () => { content.innerHTML = renderDashboard(session); },
+  tasks: () => renderTasks(content),
   users: () => renderUsers(content),
   audit: () => renderAudit(content),
   uploads: () => renderUploads(content, { allowedTypes: allowedUploadTypes(), initialType: uploadsInitialType }),
