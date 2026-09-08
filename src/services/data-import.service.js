@@ -40,6 +40,23 @@ function fallbackHash(value) {
   return (hash >>> 0).toString(36);
 }
 
+function isoDate(value) {
+  const source = clean(value);
+  if (!source) return '';
+  const br = source.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (br) return `${br[3]}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`;
+  const iso = source.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  return '';
+}
+
+function propertyReferenceFromContract(value) {
+  const source = clean(value);
+  if (!source) return '';
+  const prefix = clean(source.split(/\s+-\s+/)[0]);
+  return prefix.replace(/\*+$/g, '').trim();
+}
+
 function loadXlsx() {
   if (window.XLSX) return Promise.resolve(window.XLSX);
   if (!xlsxPromise) {
@@ -116,9 +133,47 @@ function mergeClient(map, client) {
   if (!existing.phone && client.phone) existing.phone = client.phone;
 }
 
+function parseLease(row) {
+  const contractNumber = clean(first(row, ['Nº contrato', 'N° contrato', 'Contrato']));
+  if (!contractNumber) return null;
+  const propertyRaw = clean(first(row, ['Imovel', 'Imóvel']));
+  const propertyReference = propertyReferenceFromContract(propertyRaw);
+  const landlord = parseParty(first(row, ['Proprietarios', 'Proprietários']), 'PROPRIETARIO', contractNumber);
+  const tenant = parseParty(first(row, ['Inquilinos', 'Inquilino']), 'INQUILINO', contractNumber);
+  const statusText = clean(first(row, ['Marcações', 'Marcacoes']));
+  return {
+    id: `contract-${slug(contractNumber) || fallbackHash(contractNumber)}`,
+    contractNumber,
+    statusText,
+    contractType: clean(first(row, ['Tipo'])),
+    guarantee: clean(first(row, ['Garantia'])),
+    dueDay: numberValue(first(row, ['Dia vencto.', 'Dia vencimento'])),
+    contractDate: isoDate(first(row, ['Data do contrato'])),
+    startDate: isoDate(first(row, ['Data vigência', 'Data vigencia'])),
+    endDate: isoDate(first(row, ['Fim do contrato'])),
+    closedAt: isoDate(first(row, ['Baixa'])),
+    propertyRaw,
+    propertyReference,
+    propertyId: propertyReference ? `ref-${slug(propertyReference)}` : '',
+    landlordId: landlord?.id || '',
+    landlordName: landlord?.name || '',
+    landlordRaw: landlord?.sourceText || '',
+    brokerName: clean(first(row, ['Corretor'])),
+    tenantId: tenant?.id || '',
+    tenantName: tenant?.name || '',
+    tenantRaw: tenant?.sourceText || '',
+    rentValue: numberValue(first(row, ['Valor do aluguel'])),
+    firstRentValue: numberValue(first(row, ['1º aluguel', '1o aluguel'])),
+    adminFeeValue: numberValue(first(row, ['Taxa adm. atual'])),
+    iptuValue: numberValue(first(row, ['Iptu', 'IPTU'])),
+    iptuGarageValue: numberValue(first(row, ['Iptu Garagem', 'IPTU Garagem']))
+  };
+}
+
 export async function parseClientsSpreadsheet(file) {
   const { rows, sheetName } = await rowsFromFile(file);
   const clients = new Map();
+  const leases = [];
 
   for (const row of rows) {
     const contractNumber = first(row, ['Nº contrato', 'N° contrato', 'Contrato']);
@@ -129,11 +184,13 @@ export async function parseClientsSpreadsheet(file) {
       ...splitSimpleParties(first(row, ['Beneficiários', 'Beneficiarios']), 'BENEFICIARIO', contractNumber)
     ].filter(Boolean);
     parties.forEach((party) => mergeClient(clients, party));
+    const lease = parseLease(row);
+    if (lease) leases.push(lease);
   }
 
   const records = [...clients.values()].filter((client) => client.name);
   if (!records.length) throw new Error('Não encontrei clientes nas colunas Proprietários/Inquilinos/Fiadores/Beneficiários.');
-  return { type: 'clients', fileName: file.name, sheetName, sourceRows: rows.length, records };
+  return { type: 'clients', fileName: file.name, sheetName, sourceRows: rows.length, records, leases };
 }
 
 export async function parsePropertiesSpreadsheet(file) {
@@ -186,24 +243,19 @@ export async function parsePropertiesSpreadsheet(file) {
   return { type: 'properties', fileName: file.name, sheetName, sourceRows: rows.length, duplicatesInFile, records };
 }
 
-export async function importParsedRecords(parsed) {
-  const { db, firestoreSdk, auth } = await getFirebaseServices();
-  const user = auth.currentUser;
-  if (!user) throw new Error('Sessão expirada. Entre novamente.');
-  const collectionName = parsed.type === 'clients' ? 'clients' : 'properties';
+async function writeRecords({ db, firestoreSdk, user, collectionName, records, sourceFile, sourceSheet }) {
   const { collection, doc, writeBatch, serverTimestamp } = firestoreSdk;
   let written = 0;
-
-  for (let offset = 0; offset < parsed.records.length; offset += BATCH_SIZE) {
+  for (let offset = 0; offset < records.length; offset += BATCH_SIZE) {
     const batch = writeBatch(db);
-    const slice = parsed.records.slice(offset, offset + BATCH_SIZE);
+    const slice = records.slice(offset, offset + BATCH_SIZE);
     for (const record of slice) {
       const ref = doc(collection(db, collectionName), record.id);
       const { id, ...payload } = record;
       batch.set(ref, {
         ...payload,
-        sourceFile: parsed.fileName,
-        sourceSheet: parsed.sheetName,
+        sourceFile,
+        sourceSheet,
         importedAt: serverTimestamp(),
         importedBy: user.uid,
         updatedAt: serverTimestamp()
@@ -212,6 +264,36 @@ export async function importParsedRecords(parsed) {
     await batch.commit();
     written += slice.length;
   }
+  return written;
+}
 
-  return { written, collectionName };
+export async function importParsedRecords(parsed) {
+  const { db, firestoreSdk, auth } = await getFirebaseServices();
+  const user = auth.currentUser;
+  if (!user) throw new Error('Sessão expirada. Entre novamente.');
+  const collectionName = parsed.type === 'clients' ? 'clients' : 'properties';
+  const written = await writeRecords({
+    db,
+    firestoreSdk,
+    user,
+    collectionName,
+    records: parsed.records,
+    sourceFile: parsed.fileName,
+    sourceSheet: parsed.sheetName
+  });
+
+  let leasesWritten = 0;
+  if (parsed.type === 'clients' && parsed.leases?.length) {
+    leasesWritten = await writeRecords({
+      db,
+      firestoreSdk,
+      user,
+      collectionName: 'leases',
+      records: parsed.leases,
+      sourceFile: parsed.fileName,
+      sourceSheet: parsed.sheetName
+    });
+  }
+
+  return { written, collectionName, leasesWritten };
 }
