@@ -89,8 +89,8 @@ jobs:
           NODE
       - name: Build application
         run: npm run build
-      - name: Deploy Hosting and Firestore
-        run: npx firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting,firestore:rules,firestore:indexes --non-interactive
+      - name: Deploy Hosting, Firestore and Functions
+        run: npx firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting,firestore:rules,firestore:indexes,functions --non-interactive
       - name: Smoke test production runtime
         shell: bash
         run: |
@@ -153,6 +153,19 @@ jobs:
           echo "$APP_CSS_SOURCE" | grep -F "display: none !important" >/dev/null
           HEADERS="$(curl --fail --silent --show-error -I -H 'Cache-Control: no-cache' "${BASE_URL}/config/runtime-config.js?commit=${GITHUB_SHA}")"
           echo "$HEADERS" | grep -i '^cache-control:' | grep -Ei 'no-cache|no-store' >/dev/null
+
+          FUNCTIONS_REGION="${FIREBASE_FUNCTIONS_REGION:-southamerica-east1}"
+          FUNCTION_URL="https://${FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/adminCreateUser"
+          curl --fail --silent --show-error \
+            -X OPTIONS \
+            -H "Origin: ${BASE_URL}" \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type,authorization' \
+            -D /tmp/admin-create-user-headers.txt \
+            -o /dev/null \
+            "$FUNCTION_URL"
+          grep -i '^access-control-allow-origin:' /tmp/admin-create-user-headers.txt >/dev/null
+
           echo "Smoke test de produção concluído com autenticação Google híbrida e backend administrativo habilitado."
       - name: Validate production login with temporary user
         run: node scripts/production-auth-smoke.js
