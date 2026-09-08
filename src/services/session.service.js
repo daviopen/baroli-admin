@@ -2,6 +2,7 @@ import { loadOwnPermissions, loadUserProfile } from '../repositories/session.rep
 import { getFirebaseServices } from './firebase.service.js';
 
 const AUTHORIZATION_CACHE_KEY = 'baroliAuthorizationSession';
+const LAST_ACCESS_SESSION_KEY = 'baroliLastAccessSession';
 const AUTHORIZATION_CACHE_VERSION = 2;
 let currentSession = null;
 
@@ -41,6 +42,45 @@ function clearAuthorizationCache() {
   }
 }
 
+function lastAccessFingerprint(authUser) {
+  if (!authUser?.uid) return '';
+  const lastSignInTime = authUser.metadata?.lastSignInTime || authUser.metadata?.lastLoginAt || '';
+  return `${authUser.uid}:${lastSignInTime}`;
+}
+
+function readLastAccessFingerprint() {
+  try {
+    return globalThis.sessionStorage?.getItem(LAST_ACCESS_SESSION_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function writeLastAccessFingerprint(authUser) {
+  try {
+    const fingerprint = lastAccessFingerprint(authUser);
+    if (fingerprint) globalThis.sessionStorage?.setItem(LAST_ACCESS_SESSION_KEY, fingerprint);
+  } catch {
+    // Falha no storage não deve impedir o acesso ao sistema.
+  }
+}
+
+function clearLastAccessFingerprint() {
+  try {
+    globalThis.sessionStorage?.removeItem(LAST_ACCESS_SESSION_KEY);
+  } catch {
+    // noop
+  }
+}
+
+export function shouldRecordLastAccess(authUser, profile = currentSession?.profile) {
+  if (!authUser?.uid) return false;
+  if (!profile?.lastAccessAt) return true;
+  const fingerprint = lastAccessFingerprint(authUser);
+  if (!fingerprint) return true;
+  return readLastAccessFingerprint() !== fingerprint;
+}
+
 export function getCurrentSession() {
   return currentSession;
 }
@@ -73,6 +113,7 @@ export async function hydrateSession(authUser) {
 export function clearSession() {
   currentSession = null;
   clearAuthorizationCache();
+  clearLastAccessFingerprint();
 }
 
 export async function recordLastAccess(authUser = currentSession?.authUser) {
@@ -80,6 +121,7 @@ export async function recordLastAccess(authUser = currentSession?.authUser) {
   const { db, firestoreSdk } = await getFirebaseServices();
   const ref = firestoreSdk.doc(db, 'users', authUser.uid);
   await firestoreSdk.updateDoc(ref, { lastAccessAt: firestoreSdk.serverTimestamp() });
+  writeLastAccessFingerprint(authUser);
 }
 
 export async function recordLogin() {
@@ -92,4 +134,4 @@ export async function recordLogout() {
   return { skipped: true };
 }
 
-export { AUTHORIZATION_CACHE_KEY };
+export { AUTHORIZATION_CACHE_KEY, LAST_ACCESS_SESSION_KEY };

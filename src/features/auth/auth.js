@@ -1,5 +1,11 @@
 import { getFirebaseServices } from '../../services/firebase.service.js';
-import { clearSession, hydrateSession, recordLogin, recordLogout } from '../../services/session.service.js';
+import {
+  clearSession,
+  hydrateSession,
+  recordLogin,
+  recordLogout,
+  shouldRecordLastAccess
+} from '../../services/session.service.js';
 
 const EMBEDDED_BROWSER_PATTERN = /(FBAN|FBAV|FB_IAB|Instagram|Line\/|WhatsApp|Twitter|LinkedInApp|Snapchat|; wv\)|\bwv\b)/i;
 const MOBILE_USER_AGENT_PATTERN = /(Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile)/i;
@@ -164,13 +170,15 @@ export async function watchAuth(onReady, onSignedOut, onBlocked, onAuthError = (
       return;
     }
 
-    // Assim como no louvor-ide, último acesso é best-effort e não participa
-    // da decisão de autenticação/autorização. Evita escrita repetida quando a
-    // sessão já foi hidratada nesta aba.
-    if (!hydrated.hydratedFromCache) {
-      void recordLogin().catch((error) => {
+    // Registra no máximo uma vez por sessão/autenticação do navegador e aguarda
+    // a escrita antes de abrir o app. Assim a própria tela de Usuários já lê o
+    // lastAccessAt atualizado, sem gerar uma escrita a cada navegação interna.
+    if (shouldRecordLastAccess(user, hydrated.session.profile)) {
+      try {
+        await recordLogin();
+      } catch (error) {
         console.warn('Não foi possível registrar o último acesso do usuário.', error);
-      });
+      }
     }
 
     onReady(hydrated.session);

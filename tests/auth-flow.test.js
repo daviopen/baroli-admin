@@ -61,6 +61,18 @@ test('último acesso é gravado diretamente no Firestore sem Cloud Function', ()
   assert.doesNotMatch(sessionSource, /recordSessionLogin/);
 });
 
+test('último acesso é registrado uma vez por sessão e concluído antes de abrir o app', () => {
+  assert.match(sessionSource, /LAST_ACCESS_SESSION_KEY/);
+  assert.match(sessionSource, /shouldRecordLastAccess/);
+  assert.match(sessionSource, /metadata\?\.lastSignInTime/);
+  assert.match(authSource, /if \(shouldRecordLastAccess\(user, hydrated\.session\.profile\)\)/);
+  assert.match(authSource, /await recordLogin\(\)/);
+});
+
+test('perfil sem histórico força o primeiro registro de último acesso', () => {
+  assert.match(sessionSource, /if \(!profile\?\.lastAccessAt\) return true/);
+});
+
 test('rules permitem apenas que o próprio usuário altere lastAccessAt', () => {
   assert.match(rulesSource, /affectedKeys\(\)\.hasOnly\(\['lastAccessAt'\]\)/);
   assert.match(rulesSource, /request\.resource\.data\.lastAccessAt == request\.time/);
