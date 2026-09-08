@@ -67,6 +67,52 @@
   grid-column: 1 / -1;
 }
 
+.field input[readonly] {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: default;
+}
+
+.linked-property-card {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--border);
+}
+
+.linked-property-card[hidden] {
+  display: none;
+}
+
+.linked-property-card > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: var(--surface-2);
+}
+
+.linked-property-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.linked-property-card strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.linked-property-address {
+  grid-column: span 2;
+}
+
 .field textarea {
   width: 100%;
   resize: vertical;
@@ -233,8 +279,13 @@
 
 @media (max-width: 760px) {
   .form-grid.two-columns,
-  .form-grid.three-columns {
+  .form-grid.three-columns,
+  .linked-property-card {
     grid-template-columns: 1fr;
+  }
+
+  .linked-property-address {
+    grid-column: auto;
   }
 
   .termination-actions {
