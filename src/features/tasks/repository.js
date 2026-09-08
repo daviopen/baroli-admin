@@ -1,4 +1,10 @@
+import { cachedRead, invalidateReadCache } from '../../core/read-cache.js';
 import { getFirebaseServices } from '../../services/firebase.service.js';
+
+const TASK_LIST_LIMIT = 200;
+const TASK_LIST_TTL_MS = 45_000;
+const TASK_REFERENCE_TTL_MS = 10 * 60_000;
+const REFERENCE_LIMITS = Object.freeze({ users: 50, properties: 150, clients: 150, leases: 200, leaseTerminations: 100 });
 
 export const TASK_STATUSES = Object.freeze([
   { id: 'TODO', label: 'A fazer' },
@@ -76,11 +82,22 @@ async function writeAudit(batch, db, firestoreSdk, actor, action, entityId, deta
   });
 }
 
-export async function listTasks() {
-  const { db, firestoreSdk } = await getFirebaseServices();
-  const q = firestoreSdk.query(firestoreSdk.collection(db, 'tasks'), firestoreSdk.orderBy('updatedAt', 'desc'));
-  const snap = await firestoreSdk.getDocs(q);
-  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+function invalidateTaskReads() {
+  invalidateReadCache('tasks:list', 'tasks:refs');
+}
+
+export async function listTasks({ force = false } = {}) {
+  const { db, firestoreSdk, auth } = await getFirebaseServices();
+  const uid = auth.currentUser?.uid || 'anonymous';
+  return cachedRead(`tasks:list:${uid}`, async () => {
+    const q = firestoreSdk.query(
+      firestoreSdk.collection(db, 'tasks'),
+      firestoreSdk.orderBy('updatedAt', 'desc'),
+      firestoreSdk.limit(TASK_LIST_LIMIT)
+    );
+    const snap = await firestoreSdk.getDocs(q);
+    return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  }, { ttlMs: TASK_LIST_TTL_MS, force });
 }
 
 export async function createTask(input, actor) {
@@ -100,6 +117,7 @@ export async function createTask(input, actor) {
   });
   await writeAudit(batch, db, firestoreSdk, actor, 'TASK_CREATED', ref.id, { title: data.title, status: data.status });
   await batch.commit();
+  invalidateTaskReads();
   return ref.id;
 }
 
@@ -118,6 +136,7 @@ export async function updateTask(taskId, input, actor) {
   });
   await writeAudit(batch, db, firestoreSdk, actor, 'TASK_UPDATED', taskId, { title: data.title, status: data.status });
   await batch.commit();
+  invalidateTaskReads();
 }
 
 export async function updateTaskStatus(taskId, status, actor) {
@@ -135,6 +154,7 @@ export async function updateTaskStatus(taskId, status, actor) {
   batch.update(ref, patch);
   await writeAudit(batch, db, firestoreSdk, actor, 'TASK_STATUS_UPDATED', taskId, { status });
   await batch.commit();
+  invalidateTaskReads();
 }
 
 export async function deleteTask(taskId, actor) {
@@ -144,30 +164,36 @@ export async function deleteTask(taskId, actor) {
   batch.delete(ref);
   await writeAudit(batch, db, firestoreSdk, actor, 'TASK_DELETED', taskId);
   await batch.commit();
+  invalidateTaskReads();
 }
 
-export async function loadTaskReferences() {
-  const { db, firestoreSdk } = await getFirebaseServices();
-  async function safeList(collectionName, mapper) {
-    try {
-      const snap = await firestoreSdk.getDocs(firestoreSdk.collection(db, collectionName));
-      return snap.docs.map((doc) => mapper(doc.id, doc.data())).filter((item) => item.label);
-    } catch (_) {
-      return [];
+export async function loadTaskReferences({ force = false } = {}) {
+  const { db, firestoreSdk, auth } = await getFirebaseServices();
+  const uid = auth.currentUser?.uid || 'anonymous';
+  return cachedRead(`tasks:refs:${uid}`, async () => {
+    async function safeList(collectionName, mapper) {
+      try {
+        const max = REFERENCE_LIMITS[collectionName] || 100;
+        const q = firestoreSdk.query(firestoreSdk.collection(db, collectionName), firestoreSdk.limit(max));
+        const snap = await firestoreSdk.getDocs(q);
+        return snap.docs.map((doc) => mapper(doc.id, doc.data())).filter((item) => item.label);
+      } catch (_) {
+        return [];
+      }
     }
-  }
-  const [users, properties, clients, leases, terminations] = await Promise.all([
-    safeList('users', (id, data) => ({ id, label: data.name || data.email || id, active: data.active !== false })),
-    safeList('properties', (id, data) => ({ id, label: data.address || data.endereco || data.code || data.codigo || data.name || id })),
-    safeList('clients', (id, data) => ({ id, label: data.name || data.nome || data.email || data.cpf || id })),
-    safeList('leases', (id, data) => ({ id, label: data.code || data.codigo || data.contractNumber || data.numeroContrato || data.propertyLabel || id })),
-    safeList('leaseTerminations', (id, data) => ({ id, label: data.title || data.tenantName || data.clientName || data.contractCode || id }))
-  ]);
-  return {
-    users: users.filter((item) => item.active),
-    properties,
-    clients,
-    leases,
-    terminations
-  };
+    const [users, properties, clients, leases, terminations] = await Promise.all([
+      safeList('users', (id, data) => ({ id, label: data.name || data.email || id, active: data.active !== false })),
+      safeList('properties', (id, data) => ({ id, label: data.address || data.endereco || data.code || data.codigo || data.name || id })),
+      safeList('clients', (id, data) => ({ id, label: data.name || data.nome || data.email || data.cpf || id })),
+      safeList('leases', (id, data) => ({ id, label: data.code || data.codigo || data.contractNumber || data.numeroContrato || data.propertyLabel || id })),
+      safeList('leaseTerminations', (id, data) => ({ id, label: data.title || data.tenantName || data.clientName || data.contractCode || id }))
+    ]);
+    return {
+      users: users.filter((item) => item.active),
+      properties,
+      clients,
+      leases,
+      terminations
+    };
+  }, { ttlMs: TASK_REFERENCE_TTL_MS, force });
 }
