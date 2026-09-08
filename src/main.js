@@ -5,6 +5,7 @@ import { renderAudit } from './features/audit/view.js';
 import { friendlyAuthError, sendPasswordReset, signInWithEmail, signInWithGoogle, signOutSafely, watchAuth } from './features/auth/auth.js';
 import { renderDashboard } from './features/dashboard/view.js';
 import { renderClients, renderProperties, renderUploads } from './features/data-import/view.js';
+import { renderLeaseTerminations } from './features/lease-termination/list.js';
 import { renderLeaseTermination } from './features/lease-termination/view.js';
 import { renderProfile } from './features/profile/view.js';
 import { renderUsers } from './features/users/view.js';
@@ -32,6 +33,7 @@ const routes = {
   uploads: () => renderUploads(content, { allowedTypes: allowedUploadTypes(), initialType: uploadsInitialType }),
   clients: () => renderClients(content),
   properties: () => renderProperties(content),
+  'lease-terminations': () => renderLeaseTerminations(content),
   'lease-termination': () => renderLeaseTermination(content),
   profile: () => renderProfile(content)
 };
@@ -90,26 +92,27 @@ function showApp(currentSession) {
 }
 
 function renderNavigation() {
-  const available = MODULES.filter(({ id }) => !['clients', 'properties'].includes(id) && routes[id] && canAccessModule(session, id));
+  const available = MODULES.filter(({ id }) => !['clients', 'properties', 'lease-termination'].includes(id) && routes[id] && canAccessModule(session, id));
   const configIds = new Set(['users', 'audit']);
   const primaryItems = available.filter(({ id }) => !configIds.has(id)).map(({ id, label }) => ({ id, label }));
   const configItems = available.filter(({ id }) => configIds.has(id)).map(({ id, label }) => ({ id, label }));
 
-  if (allowedUploadTypes().length) {
-    primaryItems.push({ id: 'uploads', label: 'Uploads' });
-  }
+  if (allowedUploadTypes().length) primaryItems.push({ id: 'uploads', label: 'Uploads' });
 
-  const primaryHtml = primaryItems
-    .map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`)
-    .join('');
-
+  const primaryHtml = primaryItems.map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`).join('');
   const currentRoute = location.hash.replace('#/', '') || 'dashboard';
+  const canUseTerminations = canAccessModule(session, 'lease-termination');
+  const terminationOpen = ['lease-terminations', 'lease-termination'].includes(currentRoute) ? ' open' : '';
+  const terminationHtml = canUseTerminations
+    ? `<details class="nav-tree" data-nav-tree="terminations"${terminationOpen}><summary><span>Rescisões</span><span class="nav-tree-chevron" aria-hidden="true">⌄</span></summary><div class="nav-tree-children"><a href="#/lease-terminations" data-route="lease-terminations">Consultar</a><a href="#/lease-termination" data-route="lease-termination">Calcular</a></div></details>`
+    : '';
+
   const configOpen = configIds.has(currentRoute) ? ' open' : '';
   const configHtml = configItems.length
     ? `<details class="nav-tree" data-nav-tree="settings"${configOpen}><summary><span>Configurações</span><span class="nav-tree-chevron" aria-hidden="true">⌄</span></summary><div class="nav-tree-children">${configItems.map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`).join('')}</div></details>`
     : '';
 
-  navigation.innerHTML = `${primaryHtml}${configHtml}`;
+  navigation.innerHTML = `${primaryHtml}${terminationHtml}${configHtml}`;
 }
 
 async function navigate(route) {
@@ -128,7 +131,12 @@ async function navigate(route) {
   if (route === 'permissions') history.replaceState(null, '', '#/users');
   const selfServiceRoute = target === 'profile';
   const uploadsRoute = target === 'uploads';
-  const authorized = uploadsRoute ? allowedUploadTypes().length > 0 : canAccessModule(session, target);
+  const terminationRoute = ['lease-terminations', 'lease-termination'].includes(target);
+  const authorized = uploadsRoute
+    ? allowedUploadTypes().length > 0
+    : terminationRoute
+      ? canAccessModule(session, 'lease-termination')
+      : canAccessModule(session, target);
 
   if (!selfServiceRoute && !authorized) {
     content.innerHTML = '<section class="panel"><h1>Acesso não autorizado</h1><p>Você não possui permissão para este módulo.</p></section>';
@@ -138,6 +146,8 @@ async function navigate(route) {
   navigation.querySelectorAll('a').forEach((link) => link.classList.toggle('active', link.dataset.route === target));
   const settingsTree = navigation.querySelector('[data-nav-tree="settings"]');
   if (settingsTree && ['users', 'audit'].includes(target)) settingsTree.open = true;
+  const terminationTree = navigation.querySelector('[data-nav-tree="terminations"]');
+  if (terminationTree && terminationRoute) terminationTree.open = true;
   sidebarProfileLink?.classList.toggle('active', selfServiceRoute);
   setMobileMenu(false);
   content.innerHTML = '<div class="loading">Carregando...</div>';
