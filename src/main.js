@@ -93,11 +93,16 @@ function renderNavigation() {
   const available = MODULES.filter(({ id }) => !['clients', 'properties'].includes(id) && routes[id] && canAccessModule(session, id));
   const items = available.map(({ id, label }) => ({ id, label }));
   const uploadTypes = allowedUploadTypes();
+
   if (uploadTypes.length) {
-    const auditIndex = items.findIndex(({ id }) => id === 'audit');
-    const insertAt = auditIndex >= 0 ? auditIndex + 1 : Math.min(2, items.length);
+    const managementIndex = items.findIndex(({ id }) => ['users', 'audit'].includes(id));
+    const insertAt = managementIndex >= 0 ? managementIndex : items.length;
     items.splice(insertAt, 0, { id: 'uploads', label: 'Uploads' });
   }
+
+  const priority = { users: 1, audit: 2 };
+  items.sort((a, b) => (priority[a.id] ?? 0) - (priority[b.id] ?? 0));
+
   navigation.innerHTML = items.map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`).join('');
 }
 
