@@ -9,6 +9,7 @@ const db = getFirestore();
 const auth = getAuth();
 const REGION = 'southamerica-east1';
 const ROLES = new Set(['USER', 'ADMIN', 'SUPER_ADMIN']);
+const PROFILE_TYPES = new Set(['ADM_SUPER', 'CORRETOR', 'ADMINISTRATIVO', 'GESTAO']);
 const ACTIONS = new Set(['READ', 'CREATE', 'UPDATE', 'DELETE']);
 const LEVELS = new Set(['NONE', 'READ', 'EDIT']);
 const MODULE_PATTERN = /^[a-z][a-z0-9_-]{1,48}$/;
@@ -16,6 +17,11 @@ const DEFAULT_USER_PERMISSIONS = Object.freeze({ dashboard: 'READ' });
 
 function cleanString(value, maxLength) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+}
+
+function normalizeProfileType(value, fallback = 'CORRETOR') {
+  const normalized = cleanString(value, 40).toUpperCase().replaceAll('-', '_');
+  return PROFILE_TYPES.has(normalized) ? normalized : fallback;
 }
 
 async function getCaller(request, { active = true } = {}) {
@@ -146,7 +152,11 @@ exports.adminCreateUser = onCall({ region: REGION }, async (request) => {
 
   const name = cleanString(request.data?.name, 160);
   const email = cleanString(request.data?.email, 320).toLowerCase();
-  const role = 'USER';
+  const profileType = normalizeProfileType(request.data?.profileType);
+  const requestedRole = cleanString(request.data?.role, 40).toUpperCase() || 'USER';
+  if (!ROLES.has(requestedRole)) throw new HttpsError('invalid-argument', 'Perfil técnico inválido.');
+  if (requestedRole !== 'USER' || request.data?.profileType != null) requireSuperAdmin(caller);
+  const role = profileType === 'ADM_SUPER' ? 'SUPER_ADMIN' : requestedRole === 'SUPER_ADMIN' ? 'USER' : requestedRole;
   const permissionInput = request.data?.permissions;
   if (!name || !email || !email.includes('@')) throw new HttpsError('invalid-argument', 'Nome e e-mail são obrigatórios.');
 
@@ -166,6 +176,7 @@ exports.adminCreateUser = onCall({ region: REGION }, async (request) => {
       name,
       email,
       role,
+      profileType,
       active: true,
       createdAt: now,
       createdBy: caller.uid,
@@ -213,11 +224,18 @@ exports.adminUpdateUser = onCall({ region: REGION }, async (request) => {
   const after = { ...before };
   if (typeof request.data?.name === 'string') after.name = cleanString(request.data.name, 160);
   if (typeof request.data?.active === 'boolean') after.active = request.data.active;
-  if (typeof request.data?.role === 'string') {
-    if (!ROLES.has(request.data.role)) throw new HttpsError('invalid-argument', 'Perfil inválido.');
-    if (request.data.role !== before.role) requireSuperAdmin(caller);
-    after.role = request.data.role;
+  if (typeof request.data?.profileType === 'string') {
+    requireSuperAdmin(caller);
+    after.profileType = normalizeProfileType(request.data.profileType, before.profileType || (before.role === 'SUPER_ADMIN' ? 'ADM_SUPER' : 'CORRETOR'));
   }
+  if (typeof request.data?.role === 'string') {
+    const requestedRole = cleanString(request.data.role, 40).toUpperCase();
+    if (!ROLES.has(requestedRole)) throw new HttpsError('invalid-argument', 'Perfil inválido.');
+    if (requestedRole !== before.role) requireSuperAdmin(caller);
+    after.role = requestedRole;
+  }
+  if (after.profileType === 'ADM_SUPER') after.role = 'SUPER_ADMIN';
+  if (after.profileType && after.profileType !== 'ADM_SUPER' && after.role === 'SUPER_ADMIN') after.role = 'USER';
   if (!after.name) throw new HttpsError('invalid-argument', 'Nome obrigatório.');
 
   if (before.role === 'SUPER_ADMIN' && before.active !== after.active) requireSuperAdmin(caller);
@@ -229,6 +247,7 @@ exports.adminUpdateUser = onCall({ region: REGION }, async (request) => {
   const patch = {
     name: after.name,
     role: after.role,
+    profileType: after.profileType || (after.role === 'SUPER_ADMIN' ? 'ADM_SUPER' : 'CORRETOR'),
     active: after.active,
     updatedAt: FieldValue.serverTimestamp(),
     updatedBy: caller.uid
