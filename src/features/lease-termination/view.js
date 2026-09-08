@@ -13,6 +13,14 @@ function numericValue(form, name) {
   return raw === '' ? 0 : Number(raw);
 }
 
+function todayIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function collectInput(form) {
   return {
     property: value(form, 'property'),
@@ -104,13 +112,14 @@ function renderLinkedData(root, lease) {
   setText(card, '[data-linked="contract"]', lease.contractNumber || '—');
   setText(card, '[data-linked="guarantee"]', lease.guarantee || '—');
   setText(card, '[data-linked="broker"]', property?.brokerName || lease.brokerName || '—');
-  setText(card, '[data-linked="condo"]', money.format(Number(property?.condominiumValue || 0)));
+  setText(card, '[data-linked="iptu"]', Number(property?.iptuValue || 0) > 0 ? money.format(Number(property.iptuValue)) : 'Não informado');
+  setText(card, '[data-linked="condo"]', Number(property?.condominiumValue || 0) > 0 ? money.format(Number(property.condominiumValue)) : 'Não informado');
   card.hidden = false;
 }
 
 function applyLeaseToForm(root, form, lease) {
   if (!lease) {
-    ['property', 'landlord', 'tenant', 'contractStart', 'contractEnd', 'monthlyRent', 'annualIptu'].forEach((name) => setField(form, name, ''));
+    ['property', 'landlord', 'tenant', 'contractStart', 'contractEnd', 'monthlyRent', 'annualIptu', 'condoTotal'].forEach((name) => setField(form, name, ''));
     renderLinkedData(root, null);
     return;
   }
@@ -120,22 +129,27 @@ function applyLeaseToForm(root, form, lease) {
   setField(form, 'contractStart', lease.startDate);
   setField(form, 'contractEnd', lease.endDate);
   setField(form, 'monthlyRent', Number(lease.rentValue || lease.property?.rentValue || 0) || '');
-  setField(form, 'annualIptu', Number(lease.iptuValue || lease.property?.iptuValue || 0) || '');
+  // A coluna "Iptu" da planilha de contratos pode ser inscrição/código. O valor financeiro vem da base de imóveis.
+  setField(form, 'annualIptu', Number(lease.property?.iptuValue || 0) || '');
+  setField(form, 'condoTotal', Number(lease.property?.condominiumValue || 0) || '');
   if (!value(form, 'rentPeriodStart')) setField(form, 'rentPeriodStart', lease.startDate);
   renderLinkedData(root, lease);
 }
 
 export async function renderLeaseTermination(root) {
   root.innerHTML = `
-    <section class="page-header">
-      <p class="eyebrow">Financeiro</p>
-      <h1>Cálculo de rescisão</h1>
-      <p>Selecione uma locação importada para carregar imóvel, proprietário, inquilino e dados contratuais diretamente da base.</p>
+    <section class="page-header termination-page-header">
+      <div>
+        <p class="eyebrow">Financeiro</p>
+        <h1>Cálculo de rescisão</h1>
+        <p>Selecione uma locação importada para carregar imóvel, proprietário, inquilino e dados contratuais diretamente da base.</p>
+      </div>
+      <a class="secondary compact termination-history-link" href="#/lease-terminations">Consultar rescisões</a>
     </section>
 
     <form id="termination-form" class="termination-layout" novalidate>
       <div class="termination-form-column">
-        <section class="panel termination-section">
+        <section class="panel termination-section termination-lease-section">
           <div class="section-heading"><div><span class="section-step">1</span><h2>Locação vinculada</h2></div><span class="section-hint">Dados da base importada</span></div>
           <div class="form-grid two-columns">
             <label class="field full-span">Contrato / imóvel
@@ -144,12 +158,12 @@ export async function renderLeaseTermination(root) {
             <label class="field full-span">Imóvel<input name="property" readonly></label>
             <label class="field">Locador<input name="landlord" readonly></label>
             <label class="field">Inquilino<input name="tenant" readonly></label>
-            <label class="field">Início do contrato<input name="contractStart" type="date" required></label>
-            <label class="field">Término previsto<input name="contractEnd" type="date" required></label>
-            <label class="field">Data da rescisão / desocupação<input name="terminationDate" type="date" required></label>
+            <label class="field">Início do contrato<input name="contractStart" type="date" required readonly aria-readonly="true"></label>
+            <label class="field">Término previsto<input name="contractEnd" type="date" required readonly aria-readonly="true"></label>
+            <label class="field">Data da rescisão / desocupação<input name="terminationDate" type="date" value="${todayIso()}" required></label>
             <label class="field">Aluguel atual<input name="monthlyRent" type="number" min="0" step="0.01" inputmode="decimal" required></label>
             <label class="field">Aplicar multa rescisória?
-              <select name="applyTerminationFee"><option value="no">Não</option><option value="yes">Sim</option></select>
+              <select name="applyTerminationFee"><option value="yes" selected>Sim</option><option value="no">Não</option></select>
             </label>
           </div>
           <div class="linked-property-card" data-linked-property hidden>
@@ -158,7 +172,8 @@ export async function renderLeaseTermination(root) {
             <div class="linked-property-address"><span>Endereço cadastrado</span><strong data-linked="address">—</strong></div>
             <div><span>Garantia</span><strong data-linked="guarantee">—</strong></div>
             <div><span>Corretor</span><strong data-linked="broker">—</strong></div>
-            <div><span>Condomínio cadastrado</span><strong data-linked="condo">R$ 0,00</strong></div>
+            <div><span>IPTU cadastrado</span><strong data-linked="iptu">—</strong></div>
+            <div><span>Condomínio cadastrado</span><strong data-linked="condo">—</strong></div>
           </div>
         </section>
 
@@ -171,7 +186,7 @@ export async function renderLeaseTermination(root) {
         </section>
 
         <section class="panel termination-section">
-          <div class="section-heading"><div><span class="section-step">3</span><h2>IPTU</h2></div></div>
+          <div class="section-heading"><div><span class="section-step">3</span><h2>IPTU</h2></div><span class="section-hint">Valor cadastrado no imóvel é preenchido automaticamente</span></div>
           <div class="form-grid three-columns">
             <label class="field">Valor anual do IPTU<input name="annualIptu" type="number" min="0" step="0.01" inputmode="decimal"></label>
             <label class="field">Valor efetivamente pago<input name="iptuPaid" type="number" min="0" step="0.01" inputmode="decimal"></label>
@@ -182,7 +197,7 @@ export async function renderLeaseTermination(root) {
         </section>
 
         <section class="panel termination-section">
-          <div class="section-heading"><div><span class="section-step">4</span><h2>Condomínio</h2></div><span class="section-hint">Despesas individuais são integrais</span></div>
+          <div class="section-heading"><div><span class="section-step">4</span><h2>Condomínio</h2></div><span class="section-hint">Base mensal importada; despesas individuais são integrais</span></div>
           <div class="form-grid three-columns">
             <label class="field">Valor total do boleto<input name="condoTotal" type="number" min="0" step="0.01"></label>
             <label class="field">Taxa extra<input name="condoExtraFee" type="number" min="0" step="0.01"></label>
@@ -210,15 +225,11 @@ export async function renderLeaseTermination(root) {
           </div>
         </section>
 
-        <div class="termination-actions">
-          <button class="primary" type="submit">Calcular rescisão</button>
-          <button class="secondary compact" type="reset">Limpar</button>
-        </div>
         <p class="error-text" id="termination-error" role="alert" aria-live="polite"></p>
       </div>
 
       <aside class="termination-summary panel" aria-live="polite">
-        <p class="eyebrow">Resumo da rescisão</p>
+        <div class="summary-heading"><p class="eyebrow">Resumo da rescisão</p><span class="summary-status">Prévia</span></div>
         <div class="summary-list">
           <div><span>Aluguel proporcional</span><strong data-result="rent">R$ 0,00</strong></div>
           <small data-memory="rent">Preencha os dados para calcular.</small>
@@ -236,6 +247,10 @@ export async function renderLeaseTermination(root) {
         <div class="summary-total"><span>Saldo final</span><strong data-result="final">R$ 0,00</strong><b data-result="label">AGUARDANDO CÁLCULO</b></div>
         <p class="summary-rule">Positivo: cobrar do inquilino. Negativo: ressarcir o inquilino.</p>
         <div class="summary-warning">Ferramenta administrativa. Confira contrato, comprovantes, boleto de condomínio e IPTU antes de concluir a rescisão.</div>
+        <div class="termination-actions termination-summary-actions">
+          <button class="primary" type="submit">Calcular rescisão</button>
+          <button class="secondary compact" type="reset">Limpar</button>
+        </div>
       </aside>
     </form>
   `;
@@ -282,6 +297,8 @@ export async function renderLeaseTermination(root) {
   form.addEventListener('reset', () => {
     queueMicrotask(() => {
       applyLeaseToForm(root, form, null);
+      setField(form, 'terminationDate', todayIso());
+      setField(form, 'applyTerminationFee', 'yes');
       root.querySelector('.termination-summary')?.classList.remove('is-credit', 'is-settled');
       root.querySelectorAll('[data-result]').forEach((node) => {
         node.textContent = node.dataset.result === 'label' ? 'AGUARDANDO CÁLCULO' : 'R$ 0,00';
