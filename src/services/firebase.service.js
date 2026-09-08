@@ -1,4 +1,4 @@
-import { firebaseConfig, functionsRegion, hasFirebaseConfig } from '../config/firebase.js';
+import { firebaseConfig, hasFirebaseConfig } from '../config/firebase.js';
 
 const SDK_VERSION = '12.18.0';
 const base = `https://www.gstatic.com/firebasejs/${SDK_VERSION}`;
@@ -14,18 +14,16 @@ export async function getFirebaseServices() {
     servicesPromise = Promise.all([
       import(`${base}/firebase-app.js`),
       import(`${base}/firebase-auth.js`),
-      import(`${base}/firebase-firestore.js`),
-      import(`${base}/firebase-functions.js`)
-    ]).then(([appSdk, authSdk, firestoreSdk, functionsSdk]) => {
+      import(`${base}/firebase-firestore.js`)
+    ]).then(([appSdk, authSdk, firestoreSdk]) => {
       const app = appSdk.initializeApp(firebaseConfig);
       return {
         app,
         auth: authSdk.getAuth(app),
         db: firestoreSdk.getFirestore(app),
-        functions: functionsSdk.getFunctions(app, functionsRegion),
+        appSdk,
         authSdk,
-        firestoreSdk,
-        functionsSdk
+        firestoreSdk
       };
     });
   }
