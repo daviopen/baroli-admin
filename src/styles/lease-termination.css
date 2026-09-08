@@ -154,6 +154,26 @@
   gap: 10px;
 }
 
+.termination-save-status {
+  max-width: 280px;
+  margin-left: auto;
+}
+
+.termination-save-feedback {
+  min-height: 20px;
+  margin: -6px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.termination-save-feedback.is-success {
+  color: var(--success);
+}
+
+.termination-save-feedback.is-error {
+  color: var(--danger, #b42318);
+}
+
 .secondary.compact {
   width: auto;
   margin: 0;
@@ -266,6 +286,131 @@
   line-height: 1.5;
 }
 
+.termination-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 24px;
+}
+
+.termination-new-link {
+  flex: 0 0 auto;
+  width: auto;
+  text-decoration: none;
+}
+
+.termination-filter-panel {
+  margin-bottom: 16px;
+}
+
+.termination-filter-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(140px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.termination-clear-filters {
+  min-height: 42px;
+}
+
+.termination-list-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.termination-list-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.termination-list-meta span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.termination-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.termination-table th,
+.termination-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.termination-table th {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.termination-table td > small,
+.termination-table td > strong + small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.row-status {
+  min-width: 150px;
+}
+
+.row-actions {
+  white-space: nowrap;
+}
+
+.table-action {
+  border: 0;
+  background: transparent;
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 6px 8px;
+}
+
+.table-action.danger {
+  color: var(--danger, #b42318);
+}
+
+.termination-result {
+  display: inline-flex;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.termination-result.is-credit {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.termination-empty {
+  padding: 42px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.termination-list-panel .error-text {
+  padding: 0 20px 18px;
+}
+
 @media (max-width: 1100px) {
   .termination-layout {
     grid-template-columns: 1fr;
@@ -275,12 +420,17 @@
     position: static;
     order: -1;
   }
+
+  .termination-filter-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
   .form-grid.two-columns,
   .form-grid.three-columns,
-  .linked-property-card {
+  .linked-property-card,
+  .termination-filter-row {
     grid-template-columns: 1fr;
   }
 
@@ -288,13 +438,19 @@
     grid-column: auto;
   }
 
-  .termination-actions {
+  .termination-actions,
+  .termination-list-header,
+  .termination-list-meta {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .termination-actions .primary,
-  .termination-actions .secondary {
+  .termination-actions .secondary,
+  .termination-new-link,
+  .termination-save-status {
     width: 100%;
+    max-width: none;
   }
 
   .summary-list > div {
