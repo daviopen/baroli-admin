@@ -4,9 +4,9 @@ const PAGE_CONFIG = Object.freeze({
   clients: {
     tabLabel: 'Clientes',
     title: 'Base de clientes',
-    eyebrow: 'Cadastros',
     description: 'Importe a planilha de contratos para consolidar proprietários, inquilinos, fiadores e beneficiários em uma única base de clientes.',
     acceptLabel: 'Planilha de contratos',
+    helper: 'Arquivo .xlsx, .xls ou .csv',
     collectionLabel: 'clientes',
     parser: parseClientsSpreadsheet,
     columns: [
@@ -16,9 +16,9 @@ const PAGE_CONFIG = Object.freeze({
   properties: {
     tabLabel: 'Imóveis',
     title: 'Base de imóveis',
-    eyebrow: 'Cadastros',
     description: 'Importe a planilha de imóveis para atualizar referências, endereços, valores, áreas, características e dados comerciais.',
     acceptLabel: 'Planilha de imóveis',
+    helper: 'Arquivo .xlsx, .xls ou .csv',
     collectionLabel: 'imóveis',
     parser: parsePropertiesSpreadsheet,
     columns: [
@@ -45,11 +45,11 @@ function previewRows(config, records) {
 
 function renderImportSummary(parsed) {
   const duplicateInfo = parsed.duplicatesInFile
-    ? `<div><strong>${parsed.duplicatesInFile}</strong><span>duplicados ignorados na planilha</span></div>`
+    ? `<div class="import-stat"><span class="import-stat-value">${parsed.duplicatesInFile}</span><span class="import-stat-label">Duplicados ignorados</span></div>`
     : '';
   return `
-    <div><strong>${parsed.sourceRows}</strong><span>linhas lidas</span></div>
-    <div><strong>${parsed.records.length}</strong><span>registros preparados</span></div>
+    <div class="import-stat"><span class="import-stat-value">${parsed.sourceRows}</span><span class="import-stat-label">Linhas lidas</span></div>
+    <div class="import-stat"><span class="import-stat-value">${parsed.records.length}</span><span class="import-stat-label">Registros preparados</span></div>
     ${duplicateInfo}
   `;
 }
@@ -59,40 +59,61 @@ function template(type, { embedded = false } = {}) {
   return `
     <section class="data-page" data-import-type="${type}">
       ${embedded ? `
-        <div class="upload-tab-intro">
-          <h2>${config.title}</h2>
-          <p class="muted-text">${config.description}</p>
+        <div class="upload-section-heading">
+          <div>
+            <p class="upload-section-kicker">Importação de dados</p>
+            <h2>${config.title}</h2>
+            <p>${config.description}</p>
+          </div>
         </div>
       ` : `
-        <header class="page-heading data-heading">
-          <div>
-            <p class="eyebrow">${config.eyebrow}</p>
-            <h1>${config.title}</h1>
-            <p class="muted-text">${config.description}</p>
-          </div>
+        <header class="page-header">
+          <p class="eyebrow">Base de dados</p>
+          <h1>${config.title}</h1>
+          <p>${config.description}</p>
         </header>
       `}
 
       <section class="panel import-panel">
-        <div class="import-step-label">1. Selecione a fonte</div>
+        <div class="import-panel-heading">
+          <span class="import-step">01</span>
+          <div>
+            <h3>Selecione a planilha</h3>
+            <p>Escolha o arquivo oficial que será validado antes de qualquer alteração na base.</p>
+          </div>
+        </div>
+
         <label class="upload-dropzone" for="${type}-spreadsheet">
-          <span class="upload-icon" aria-hidden="true">⇧</span>
-          <strong>${config.acceptLabel}</strong>
-          <span>Arraste ou selecione um arquivo .xlsx, .xls ou .csv</span>
+          <span class="upload-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/></svg>
+          </span>
+          <span class="upload-dropzone-copy">
+            <strong>${config.acceptLabel}</strong>
+            <span>Arraste o arquivo para cá ou clique para selecionar</span>
+            <small>${config.helper}</small>
+          </span>
+          <span class="upload-select-action">Selecionar arquivo</span>
           <input id="${type}-spreadsheet" type="file" accept=".xlsx,.xls,.csv" hidden>
         </label>
+
         <div class="import-file" hidden>
-          <div><strong class="import-file-name"></strong><span class="import-file-meta"></span></div>
-          <button class="secondary import-change" type="button">Trocar arquivo</button>
+          <span class="import-file-icon" aria-hidden="true">XLS</span>
+          <div class="import-file-copy">
+            <strong class="import-file-name"></strong>
+            <span class="import-file-meta"></span>
+          </div>
+          <button class="secondary compact import-change" type="button">Trocar arquivo</button>
         </div>
       </section>
 
       <section class="panel import-preview" hidden>
         <div class="import-preview-header">
-          <div>
-            <div class="import-step-label">2. Confira antes de salvar</div>
-            <h2>Pré-visualização</h2>
-            <p class="muted-text">Mostrando os primeiros 10 registros. A importação usa atualização por chave única para não duplicar dados.</p>
+          <div class="import-panel-heading import-panel-heading--compact">
+            <span class="import-step">02</span>
+            <div>
+              <h3>Confira antes de salvar</h3>
+              <p>Mostramos os primeiros 10 registros. A gravação utiliza chave única para evitar duplicidades.</p>
+            </div>
           </div>
           <div class="import-summary"></div>
         </div>
@@ -103,8 +124,11 @@ function template(type, { embedded = false } = {}) {
           </table>
         </div>
         <div class="import-actions">
-          <p class="import-warning">Registros já existentes com a mesma chave serão atualizados; os demais serão criados.</p>
-          <button class="primary import-save" type="button">Salvar ${config.collectionLabel} na base</button>
+          <div class="import-safety-note">
+            <strong>Atualização segura</strong>
+            <span>Registros existentes serão atualizados; novos registros serão criados.</span>
+          </div>
+          <button class="primary import-save" type="button">Salvar ${config.collectionLabel}</button>
         </div>
       </section>
 
@@ -129,7 +153,9 @@ async function bindImportPage(container, type) {
     result.hidden = true;
     preview.hidden = true;
     dropzone.classList.add('is-loading');
-    dropzone.querySelector('span:last-of-type').textContent = 'Lendo e validando a planilha...';
+    const instruction = dropzone.querySelector('.upload-dropzone-copy > span');
+    const originalInstruction = instruction.textContent;
+    instruction.textContent = 'Lendo e validando a planilha...';
     try {
       parsed = await config.parser(file);
       root.querySelector('.import-file-name').textContent = file.name;
@@ -146,7 +172,7 @@ async function bindImportPage(container, type) {
       result.hidden = false;
     } finally {
       dropzone.classList.remove('is-loading');
-      dropzone.querySelector('span:last-of-type').textContent = 'Arraste ou selecione um arquivo .xlsx, .xls ou .csv';
+      instruction.textContent = originalInstruction;
     }
   }
 
@@ -204,17 +230,23 @@ export async function renderUploads(container, { allowedTypes = ['clients', 'pro
   let activeType = availableTypes.includes(initialType) ? initialType : availableTypes[0];
   container.innerHTML = `
     <section class="uploads-page">
-      <header class="page-heading data-heading">
-        <div>
-          <p class="eyebrow">Base de dados</p>
-          <h1>Uploads</h1>
-          <p class="muted-text">Importe e atualize as bases operacionais da Baroli a partir das planilhas oficiais.</p>
+      <header class="page-header uploads-header">
+        <p class="eyebrow">Base de dados</p>
+        <div class="uploads-title-row">
+          <div>
+            <h1>Uploads</h1>
+            <p>Importe e mantenha atualizadas as bases operacionais da Baroli a partir das planilhas oficiais.</p>
+          </div>
+          <span class="uploads-status-badge">Importação assistida</span>
         </div>
       </header>
-      <div class="upload-tabs" role="tablist" aria-label="Tipos de upload">
-        ${availableTypes.map((type) => `<button type="button" class="upload-tab" role="tab" data-upload-tab="${type}">${PAGE_CONFIG[type].tabLabel}</button>`).join('')}
-      </div>
-      <div class="upload-tab-content"></div>
+
+      <section class="uploads-workspace">
+        <div class="upload-tabs" role="tablist" aria-label="Tipos de upload">
+          ${availableTypes.map((type) => `<button type="button" class="upload-tab" role="tab" data-upload-tab="${type}"><span>${PAGE_CONFIG[type].tabLabel}</span></button>`).join('')}
+        </div>
+        <div class="upload-tab-content"></div>
+      </section>
     </section>
   `;
 
@@ -228,6 +260,7 @@ export async function renderUploads(container, { allowedTypes = ['clients', 'pro
       const active = tab.dataset.uploadTab === activeType;
       tab.classList.toggle('active', active);
       tab.setAttribute('aria-selected', String(active));
+      tab.setAttribute('tabindex', active ? '0' : '-1');
     });
     content.innerHTML = template(activeType, { embedded: true });
     await bindImportPage(content, activeType);
