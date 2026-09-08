@@ -4,7 +4,6 @@ export const PERMISSION_LEVELS = Object.freeze(['NONE', 'READ', 'EDIT']);
 export const MODULES = Object.freeze([
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'users', label: 'Usuários' },
-  { id: 'permissions', label: 'Permissões' },
   { id: 'audit', label: 'Auditoria' },
   { id: 'owners', label: 'Proprietários' },
   { id: 'tenants', label: 'Inquilinos' },
