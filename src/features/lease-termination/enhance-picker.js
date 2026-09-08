@@ -26,6 +26,7 @@ function enhance(select) {
   if (!select || select.dataset.searchableLease === '1') return;
   select.dataset.searchableLease = '1';
   select.classList.add('lease-native-select');
+  select.style.display = 'none';
 
   const picker = document.createElement('div');
   picker.className = 'lease-picker';
