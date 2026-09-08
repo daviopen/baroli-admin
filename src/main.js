@@ -26,7 +26,7 @@ const routes = {
   audit: () => renderAudit(content),
   clients: () => renderClients(content),
   properties: () => renderProperties(content),
-  leaseTermination: () => renderLeaseTermination(content),
+  'lease-termination': () => renderLeaseTermination(content),
   profile: () => renderProfile(content)
 };
 
@@ -89,7 +89,11 @@ function renderNavigation() {
 }
 
 async function navigate(route) {
-  const requested = route === 'permissions' ? 'users' : route;
+  let requested = route === 'permissions' ? 'users' : route;
+  if (requested === 'leaseTermination') {
+    requested = 'lease-termination';
+    history.replaceState(null, '', '#/lease-termination');
+  }
   const target = routes[requested] ? requested : 'dashboard';
   if (route === 'permissions') history.replaceState(null, '', '#/users');
   const selfServiceRoute = target === 'profile';
