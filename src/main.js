@@ -5,7 +5,6 @@ import { renderAudit } from './features/audit/view.js';
 import { friendlyAuthError, sendPasswordReset, signInWithEmail, signInWithGoogle, signOutSafely, watchAuth } from './features/auth/auth.js';
 import { renderDashboard } from './features/dashboard/view.js';
 import { renderLeaseTermination } from './features/lease-termination/view.js';
-import { renderPermissions } from './features/permissions/view.js';
 import { renderUsers } from './features/users/view.js';
 
 const loginView = document.querySelector('#login-view');
@@ -19,7 +18,6 @@ let session;
 const routes = {
   dashboard: async () => { content.innerHTML = renderDashboard(session); },
   users: () => renderUsers(content),
-  permissions: () => renderPermissions(content),
   audit: () => renderAudit(content),
   leaseTermination: () => renderLeaseTermination(content)
 };
@@ -45,7 +43,9 @@ function renderNavigation() {
 }
 
 async function navigate(route) {
-  const target = routes[route] ? route : 'dashboard';
+  const requested = route === 'permissions' ? 'users' : route;
+  const target = routes[requested] ? requested : 'dashboard';
+  if (route === 'permissions') history.replaceState(null, '', '#/users');
   if (!canAccessModule(session, target)) {
     content.innerHTML = '<section class="panel"><h1>Acesso não autorizado</h1><p>Você não possui permissão para este módulo.</p></section>';
     return;
