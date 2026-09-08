@@ -4,6 +4,7 @@ import { hasFirebaseConfig } from './config/firebase.js';
 import { renderAudit } from './features/audit/view.js';
 import { friendlyAuthError, sendPasswordReset, signInWithEmail, signInWithGoogle, signOutSafely, watchAuth } from './features/auth/auth.js';
 import { renderDashboard } from './features/dashboard/view.js';
+import { renderClients, renderProperties } from './features/data-import/view.js';
 import { renderLeaseTermination } from './features/lease-termination/view.js';
 import { renderProfile } from './features/profile/view.js';
 import { renderUsers } from './features/users/view.js';
@@ -23,6 +24,8 @@ const routes = {
   dashboard: async () => { content.innerHTML = renderDashboard(session); },
   users: () => renderUsers(content),
   audit: () => renderAudit(content),
+  clients: () => renderClients(content),
+  properties: () => renderProperties(content),
   leaseTermination: () => renderLeaseTermination(content),
   profile: () => renderProfile(content)
 };
