@@ -1,4 +1,5 @@
 import { calculateLeaseTermination } from '../../services/lease-termination.service.js';
+import { loadLeaseTerminationOptions } from '../../services/lease-data.service.js';
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
@@ -78,22 +79,71 @@ function renderResult(root, calculation) {
   summary?.classList.toggle('is-settled', Math.abs(calculation.finalBalance) <= 0.005);
 }
 
-export function renderLeaseTermination(root) {
+function setField(form, name, nextValue) {
+  const field = form.elements[name];
+  if (field) field.value = nextValue ?? '';
+}
+
+function propertyDescription(lease) {
+  const property = lease.property;
+  if (!property) return lease.propertyRaw || lease.propertyReference || '';
+  return [property.reference, property.type, property.address, property.neighborhood, property.city, property.state]
+    .filter(Boolean).join(' · ');
+}
+
+function renderLinkedData(root, lease) {
+  const card = root.querySelector('[data-linked-property]');
+  if (!card) return;
+  if (!lease) {
+    card.hidden = true;
+    return;
+  }
+  const property = lease.property;
+  setText(card, '[data-linked="reference"]', property?.reference || lease.propertyReference || '—');
+  setText(card, '[data-linked="address"]', property?.address || lease.propertyRaw || '—');
+  setText(card, '[data-linked="contract"]', lease.contractNumber || '—');
+  setText(card, '[data-linked="guarantee"]', lease.guarantee || '—');
+  setText(card, '[data-linked="broker"]', property?.brokerName || lease.brokerName || '—');
+  setText(card, '[data-linked="condo"]', money.format(Number(property?.condominiumValue || 0)));
+  card.hidden = false;
+}
+
+function applyLeaseToForm(root, form, lease) {
+  if (!lease) {
+    ['property', 'landlord', 'tenant', 'contractStart', 'contractEnd', 'monthlyRent', 'annualIptu'].forEach((name) => setField(form, name, ''));
+    renderLinkedData(root, null);
+    return;
+  }
+  setField(form, 'property', propertyDescription(lease));
+  setField(form, 'landlord', lease.landlordName);
+  setField(form, 'tenant', lease.tenantName);
+  setField(form, 'contractStart', lease.startDate);
+  setField(form, 'contractEnd', lease.endDate);
+  setField(form, 'monthlyRent', Number(lease.rentValue || lease.property?.rentValue || 0) || '');
+  setField(form, 'annualIptu', Number(lease.iptuValue || lease.property?.iptuValue || 0) || '');
+  if (!value(form, 'rentPeriodStart')) setField(form, 'rentPeriodStart', lease.startDate);
+  renderLinkedData(root, lease);
+}
+
+export async function renderLeaseTermination(root) {
   root.innerHTML = `
     <section class="page-header">
       <p class="eyebrow">Financeiro</p>
       <h1>Cálculo de rescisão</h1>
-      <p>Simule a rescisão de uma locação com memória de cálculo baseada no modelo administrativo da Baroli.</p>
+      <p>Selecione uma locação importada para carregar imóvel, proprietário, inquilino e dados contratuais diretamente da base.</p>
     </section>
 
     <form id="termination-form" class="termination-layout" novalidate>
       <div class="termination-form-column">
         <section class="panel termination-section">
-          <div class="section-heading"><div><span class="section-step">1</span><h2>Dados do contrato</h2></div></div>
+          <div class="section-heading"><div><span class="section-step">1</span><h2>Locação vinculada</h2></div><span class="section-hint">Dados da base importada</span></div>
           <div class="form-grid two-columns">
-            <label class="field full-span">Imóvel<input name="property" autocomplete="off" placeholder="Identificação do imóvel"></label>
-            <label class="field">Locador<input name="landlord" autocomplete="off"></label>
-            <label class="field">Inquilino<input name="tenant" autocomplete="off"></label>
+            <label class="field full-span">Contrato / imóvel
+              <select name="leaseId" required><option value="">Carregando locações...</option></select>
+            </label>
+            <label class="field full-span">Imóvel<input name="property" readonly></label>
+            <label class="field">Locador<input name="landlord" readonly></label>
+            <label class="field">Inquilino<input name="tenant" readonly></label>
             <label class="field">Início do contrato<input name="contractStart" type="date" required></label>
             <label class="field">Término previsto<input name="contractEnd" type="date" required></label>
             <label class="field">Data da rescisão / desocupação<input name="terminationDate" type="date" required></label>
@@ -101,6 +151,14 @@ export function renderLeaseTermination(root) {
             <label class="field">Aplicar multa rescisória?
               <select name="applyTerminationFee"><option value="no">Não</option><option value="yes">Sim</option></select>
             </label>
+          </div>
+          <div class="linked-property-card" data-linked-property hidden>
+            <div><span>Referência</span><strong data-linked="reference">—</strong></div>
+            <div><span>Contrato</span><strong data-linked="contract">—</strong></div>
+            <div class="linked-property-address"><span>Endereço cadastrado</span><strong data-linked="address">—</strong></div>
+            <div><span>Garantia</span><strong data-linked="guarantee">—</strong></div>
+            <div><span>Corretor</span><strong data-linked="broker">—</strong></div>
+            <div><span>Condomínio cadastrado</span><strong data-linked="condo">R$ 0,00</strong></div>
           </div>
         </section>
 
@@ -184,10 +242,36 @@ export function renderLeaseTermination(root) {
 
   const form = root.querySelector('#termination-form');
   const error = root.querySelector('#termination-error');
+  const leaseSelect = form.elements.leaseId;
+  let leases = [];
+
+  try {
+    leases = await loadLeaseTerminationOptions();
+    leaseSelect.innerHTML = `<option value="">Selecione o contrato ou imóvel</option>${leases.map((lease) => {
+      const closed = lease.closedAt ? ' · baixado' : '';
+      return `<option value="${lease.id}">${lease.contractNumber || 'Sem nº'} · ${lease.propertyLabel}${closed}</option>`;
+    }).join('')}`;
+    if (!leases.length) {
+      leaseSelect.innerHTML = '<option value="">Nenhuma locação importada</option>';
+      error.textContent = 'Importe novamente a planilha de clientes/contratos para criar os vínculos de locação.';
+    }
+  } catch (cause) {
+    leaseSelect.innerHTML = '<option value="">Não foi possível carregar as locações</option>';
+    error.textContent = cause.message || 'Não foi possível acessar a base de contratos.';
+  }
+
+  leaseSelect.addEventListener('change', () => {
+    const selected = leases.find((lease) => lease.id === leaseSelect.value);
+    applyLeaseToForm(root, form, selected);
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     error.textContent = '';
+    if (!leaseSelect.value) {
+      error.textContent = 'Selecione uma locação da base antes de calcular a rescisão.';
+      return;
+    }
     try {
       renderResult(root, calculateLeaseTermination(collectInput(form)));
     } catch (cause) {
@@ -197,6 +281,7 @@ export function renderLeaseTermination(root) {
 
   form.addEventListener('reset', () => {
     queueMicrotask(() => {
+      applyLeaseToForm(root, form, null);
       root.querySelector('.termination-summary')?.classList.remove('is-credit', 'is-settled');
       root.querySelectorAll('[data-result]').forEach((node) => {
         node.textContent = node.dataset.result === 'label' ? 'AGUARDANDO CÁLCULO' : 'R$ 0,00';
