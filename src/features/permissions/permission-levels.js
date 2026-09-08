@@ -34,15 +34,15 @@ const PROFILE_PERMISSION_PRESETS = Object.freeze({
     Object.fromEntries(MODULES.map(({ id }) => [id, 'EDIT']))
   ),
   GESTAO: Object.freeze({
-    dashboard: 'READ', users: 'READ', audit: 'READ', clients: 'EDIT', properties: 'EDIT',
+    dashboard: 'READ', tasks: 'EDIT', users: 'READ', audit: 'READ', clients: 'EDIT', properties: 'EDIT',
     'lease-termination': 'EDIT', leases: 'EDIT', inspections: 'EDIT', maintenance: 'EDIT', finance: 'EDIT', documents: 'EDIT'
   }),
   ADMINISTRATIVO: Object.freeze({
-    dashboard: 'READ', users: 'NONE', audit: 'NONE', clients: 'EDIT', properties: 'READ',
+    dashboard: 'READ', tasks: 'EDIT', users: 'NONE', audit: 'NONE', clients: 'EDIT', properties: 'READ',
     'lease-termination': 'EDIT', leases: 'EDIT', inspections: 'EDIT', maintenance: 'EDIT', finance: 'EDIT', documents: 'EDIT'
   }),
   CORRETOR: Object.freeze({
-    dashboard: 'READ', users: 'NONE', audit: 'NONE', clients: 'READ', properties: 'EDIT',
+    dashboard: 'READ', tasks: 'EDIT', users: 'NONE', audit: 'NONE', clients: 'READ', properties: 'EDIT',
     'lease-termination': 'READ', leases: 'READ', inspections: 'READ', maintenance: 'READ', finance: 'NONE', documents: 'READ'
   })
 });
