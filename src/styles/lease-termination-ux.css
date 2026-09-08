@@ -141,6 +141,25 @@
 .summary-heading .eyebrow { margin: 0; }
 .summary-status { padding: 4px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; }
 
+.termination-section input[readonly] {
+  cursor: default;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-style: dashed;
+}
+
+.termination-summary-actions {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.termination-summary-actions .primary { min-height: 42px; }
+.termination-summary .termination-save-status { margin-top: 14px; }
+.termination-summary .termination-save-button { width: 100%; }
+.termination-summary .termination-save-feedback { margin: 9px 0 0; font-size: 11px; }
+
 @media (max-width: 760px) {
   .termination-page-header { align-items: stretch; flex-direction: column; }
   .termination-history-link { width: 100%; text-align: center; }
@@ -149,4 +168,5 @@
   .lease-picker-footer { display: none; }
   .lease-picker-option { align-items: flex-start; }
   .lease-option-status { margin-top: 2px; }
+  .termination-summary-actions { grid-template-columns: 1fr; }
 }
