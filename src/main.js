@@ -41,7 +41,7 @@ function navIcon(id) {
 }
 
 function treeChevron() {
-  return '<span class="nav-tree-chevron" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></span>';
+  return '<span class="nav-tree-chevron" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg></span>';
 }
 
 function navLink({ id, label }) {
