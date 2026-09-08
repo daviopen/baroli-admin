@@ -19,9 +19,6 @@ const hostingAuthDomain = (
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY ?? '',
-  // Mesmo padrão do louvor-ide: o helper OAuth fica no domínio first-party do
-  // Firebase Hosting, evitando redirect/storage cross-site entre web.app e
-  // firebaseapp.com.
   authDomain: hostingAuthDomain,
   projectId,
   storageBucket: process.env.FIREBASE_STORAGE_BUCKET ?? '',
@@ -30,13 +27,7 @@ const firebaseConfig = {
   measurementId: process.env.FIREBASE_MEASUREMENT_ID ?? ''
 };
 
-const functionsEnabled = /^(1|true|yes)$/i.test(process.env.FIREBASE_FUNCTIONS_ENABLED ?? 'false');
-
-const runtime = {
-  firebase: firebaseConfig,
-  functionsRegion: process.env.FIREBASE_FUNCTIONS_REGION ?? 'southamerica-east1',
-  functionsEnabled
-};
+const runtime = { firebase: firebaseConfig };
 
 await writeFile(
   path.join(dist, 'config', 'runtime-config.js'),
