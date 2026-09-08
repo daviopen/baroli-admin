@@ -91,19 +91,25 @@ function showApp(currentSession) {
 
 function renderNavigation() {
   const available = MODULES.filter(({ id }) => !['clients', 'properties'].includes(id) && routes[id] && canAccessModule(session, id));
-  const items = available.map(({ id, label }) => ({ id, label }));
-  const uploadTypes = allowedUploadTypes();
+  const configIds = new Set(['users', 'audit']);
+  const primaryItems = available.filter(({ id }) => !configIds.has(id)).map(({ id, label }) => ({ id, label }));
+  const configItems = available.filter(({ id }) => configIds.has(id)).map(({ id, label }) => ({ id, label }));
 
-  if (uploadTypes.length) {
-    const managementIndex = items.findIndex(({ id }) => ['users', 'audit'].includes(id));
-    const insertAt = managementIndex >= 0 ? managementIndex : items.length;
-    items.splice(insertAt, 0, { id: 'uploads', label: 'Uploads' });
+  if (allowedUploadTypes().length) {
+    primaryItems.push({ id: 'uploads', label: 'Uploads' });
   }
 
-  const priority = { users: 1, audit: 2 };
-  items.sort((a, b) => (priority[a.id] ?? 0) - (priority[b.id] ?? 0));
+  const primaryHtml = primaryItems
+    .map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`)
+    .join('');
 
-  navigation.innerHTML = items.map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`).join('');
+  const currentRoute = location.hash.replace('#/', '') || 'dashboard';
+  const configOpen = configIds.has(currentRoute) ? ' open' : '';
+  const configHtml = configItems.length
+    ? `<details class="nav-tree" data-nav-tree="settings"${configOpen}><summary><span>Configurações</span><span class="nav-tree-chevron" aria-hidden="true">⌄</span></summary><div class="nav-tree-children">${configItems.map(({ id, label }) => `<a href="#/${id}" data-route="${id}">${label}</a>`).join('')}</div></details>`
+    : '';
+
+  navigation.innerHTML = `${primaryHtml}${configHtml}`;
 }
 
 async function navigate(route) {
@@ -130,6 +136,8 @@ async function navigate(route) {
   }
 
   navigation.querySelectorAll('a').forEach((link) => link.classList.toggle('active', link.dataset.route === target));
+  const settingsTree = navigation.querySelector('[data-nav-tree="settings"]');
+  if (settingsTree && ['users', 'audit'].includes(target)) settingsTree.open = true;
   sidebarProfileLink?.classList.toggle('active', selfServiceRoute);
   setMobileMenu(false);
   content.innerHTML = '<div class="loading">Carregando...</div>';
