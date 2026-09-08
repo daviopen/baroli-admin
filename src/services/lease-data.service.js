@@ -10,8 +10,13 @@ export async function loadLeaseTerminationOptions() {
   const { collection, getDocs } = firestoreSdk;
 
   const leaseSnapshot = await getDocs(collection(db, 'leases'));
-  const propertySnapshot = await getDocs(collection(db, 'properties'));
-  const properties = new Map(propertySnapshot.docs.map((item) => [item.id, { id: item.id, ...item.data() }]));
+  let properties = new Map();
+  try {
+    const propertySnapshot = await getDocs(collection(db, 'properties'));
+    properties = new Map(propertySnapshot.docs.map((item) => [item.id, { id: item.id, ...item.data() }]));
+  } catch (error) {
+    console.warn('[Lease termination] Base de imóveis indisponível para este perfil; usando o retrato contratual importado.', error?.code || error);
+  }
 
   const leases = leaseSnapshot.docs.map((item) => {
     const lease = { id: item.id, ...item.data() };
