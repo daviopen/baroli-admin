@@ -18,19 +18,14 @@ jobs:
       FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
       FIREBASE_MESSAGING_SENDER_ID: ${{ vars.FIREBASE_MESSAGING_SENDER_ID }}
       FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
-      FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
-      FIREBASE_FUNCTIONS_ENABLED: "false"
       FIREBASE_MEASUREMENT_ID: ${{ vars.FIREBASE_MEASUREMENT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install root dependencies
+      - name: Install dependencies
         run: npm install --ignore-scripts
-      - name: Install Functions dependencies
-        run: npm install --ignore-scripts
-        working-directory: functions
       - name: Build and test
         run: npm run check
 
@@ -44,8 +39,6 @@ jobs:
       cancel-in-progress: true
     env:
       FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-      FIREBASE_FUNCTIONS_REGION: ${{ vars.FIREBASE_FUNCTIONS_REGION }}
-      FIREBASE_FUNCTIONS_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -53,16 +46,10 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --ignore-scripts
-      - name: Install Functions dependencies
-        run: npm install --ignore-scripts
-        working-directory: functions
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BAROLI_ADMIN }}
-      - name: Migrate legacy permission documents
-        run: npm run migrate:permission-levels
-        working-directory: functions
       - name: Read canonical Firebase Web configuration
         run: |
           npx firebase apps:sdkconfig WEB --project "$FIREBASE_PROJECT_ID" --json > /tmp/firebase-sdk.json
@@ -78,8 +65,7 @@ jobs:
             FIREBASE_STORAGE_BUCKET: config.storageBucket ?? '',
             FIREBASE_MESSAGING_SENDER_ID: config.messagingSenderId ?? '',
             FIREBASE_APP_ID: config.appId,
-            FIREBASE_MEASUREMENT_ID: config.measurementId ?? '',
-            FIREBASE_FUNCTIONS_ENABLED: 'true'
+            FIREBASE_MEASUREMENT_ID: config.measurementId ?? ''
           };
           fs.appendFileSync(process.env.GITHUB_ENV, Object.entries(values).map(([key, value]) => `${key}=${value}`).join('\n') + '\n');
           NODE
@@ -87,10 +73,6 @@ jobs:
         run: npm run build
       - name: Deploy Hosting and Firestore
         run: npx firebase deploy --project "$FIREBASE_PROJECT_ID" --only hosting,firestore:rules,firestore:indexes --non-interactive
-      - name: Deploy Functions when infrastructure permits
-        id: deploy_functions
-        continue-on-error: true
-        run: npx firebase deploy --project "$FIREBASE_PROJECT_ID" --only functions --non-interactive
       - name: Smoke test production runtime
         shell: bash
         run: |
@@ -111,6 +93,7 @@ jobs:
           if (!runtime.firebase?.apiKey || !runtime.firebase?.appId) throw new Error('Configuração Firebase pública incompleta.');
           const expectedAuthDomain = `${process.env.FIREBASE_PROJECT_ID}.web.app`;
           if (runtime.firebase?.authDomain !== expectedAuthDomain) throw new Error('authDomain publicado incorreto.');
+          if ('functionsEnabled' in runtime || 'functionsRegion' in runtime) throw new Error('Runtime ainda contém configuração de Cloud Functions.');
           NODE
           curl --fail --silent --show-error "${BASE_URL}/__/firebase/init.json" -o /tmp/firebase-init.json
           SESSION_SOURCE="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "${BASE_URL}/services/session.service.js?commit=${GITHUB_SHA}")"
@@ -121,21 +104,13 @@ jobs:
           echo "$AUTH_SOURCE" | grep -F "getRedirectResult(auth)" >/dev/null
           echo "$AUTH_SOURCE" | grep -F "browserLocalPersistence" >/dev/null
           echo "$AUTH_SOURCE" | grep -F "googleAuthStrategy" >/dev/null
+          USER_SERVICE_SOURCE="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "${BASE_URL}/services/user-admin.service.js?commit=${GITHUB_SHA}")"
+          echo "$USER_SERVICE_SOURCE" | grep -F "createUserWithEmailAndPassword(secondaryAuth" >/dev/null
+          if echo "$USER_SERVICE_SOURCE" | grep -F "adminCreateUser" >/dev/null; then
+            echo "Dependência antiga de Cloud Functions ainda está publicada."
+            exit 1
+          fi
           DATA_IMPORT_SOURCE="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "${BASE_URL}/services/data-import.service.js?commit=${GITHUB_SHA}")"
           echo "$DATA_IMPORT_SOURCE" | grep -F "parseClientsSpreadsheet" >/dev/null
           echo "$DATA_IMPORT_SOURCE" | grep -F "parsePropertiesSpreadsheet" >/dev/null
-          echo "Hosting, autenticação e importação publicados e validados."
-      - name: Smoke test production Functions
-        if: steps.deploy_functions.outcome == 'success'
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE_URL="https://${FIREBASE_PROJECT_ID}.web.app"
-          FUNCTIONS_REGION="${FIREBASE_FUNCTIONS_REGION:-southamerica-east1}"
-          FUNCTION_URL="https://${FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/adminCreateUser"
-          curl --fail --silent --show-error -X OPTIONS -H "Origin: ${BASE_URL}" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type,authorization' -D /tmp/admin-create-user-headers.txt -o /dev/null "$FUNCTION_URL"
-          grep -i '^access-control-allow-origin:' /tmp/admin-create-user-headers.txt >/dev/null
-      - name: Validate production login with temporary user
-        if: steps.deploy_functions.outcome == 'success'
-        run: node scripts/production-auth-smoke.js
-        working-directory: functions
+          echo "Hosting, autenticação, usuários sem Functions e importação publicados e validados."

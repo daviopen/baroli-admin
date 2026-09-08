@@ -8,11 +8,12 @@ function readRuntimeObject(source) {
   return JSON.parse(match[1]);
 }
 
-test('build mantém Cloud Functions desativadas quando FIREBASE_FUNCTIONS_ENABLED=false', async () => {
+test('build não publica configuração de Cloud Functions', async () => {
   const source = await readFile(new URL('../dist/config/runtime-config.js', import.meta.url), 'utf8');
   const runtime = readRuntimeObject(source);
 
-  assert.equal(runtime.functionsEnabled, false);
+  assert.equal('functionsEnabled' in runtime, false);
+  assert.equal('functionsRegion' in runtime, false);
   assert.equal(typeof runtime.firebase.projectId, 'string');
   assert.ok(runtime.firebase.projectId.length > 0, 'projectId deve existir no runtime');
 });
