@@ -421,21 +421,97 @@ Alerts/prompts nativos devem ser substituídos por componentes padronizados conf
 
 Texto de status normal não deve usar semântica/classe de loading infinito. Loading deve desaparecer ou mudar semanticamente quando concluído.
 
-## 18. Performance e estado de sessão
+## 18. Performance, leituras Firestore e estado de sessão
 
-Autenticação, perfil e permissões não devem ser recarregados desnecessariamente a cada troca de view.
+Performance e consumo de Firestore são requisitos funcionais. Nenhuma tela nova ou alteração relevante pode ser considerada concluída se a estratégia de leitura puder crescer de forma não limitada com o volume da base.
 
-Obrigatório:
+### 18.1. Regra guardiã de leituras
 
-- carregar dados de sessão uma vez por ciclo autenticado quando possível;
-- reutilizar permissões em memória durante a sessão;
-- invalidar cache somente quando houver alteração real de usuário/permissão ou evento de autenticação relevante;
-- evitar múltiplos listeners equivalentes para o mesmo dado;
-- evitar flashes repetidos de “validando permissões” em navegação interna quando a sessão já está válida;
-- evitar consultas Firestore apenas para reconstruir estado visual;
-- medir e tratar regressões perceptíveis de navegação.
+Antes de implementar ou revisar qualquer tela, Repository ou Service que consulte Firestore, responder explicitamente:
 
-Cache de autorização não pode se tornar fonte de verdade: Rules/Functions continuam obrigatórias.
+1. Quantas queries são executadas na primeira abertura da tela?
+2. Qual é o limite máximo de documentos retornados por cada query?
+3. A mesma leitura pode ser repetida por navegação, rerender, `refresh()`, modal, filtro ou listener duplicado?
+4. O dado precisa ser carregado na abertura ou pode ser buscado somente quando o usuário abrir/selecionar o recurso?
+5. Existe cache curto seguro para essa leitura?
+6. Qual mutação invalida esse cache?
+7. Há paginação/cursor ou outro teto explícito para listas que podem crescer?
+
+Se uma dessas respostas estiver indefinida, a implementação não está pronta.
+
+### 18.2. Regras obrigatórias de implementação
+
+- É proibido usar `getDocs(collection(...))` em collections de negócio potencialmente crescentes sem `query(...)` e sem limite/paginação, salvo migração, exportação ou rotina administrativa explicitamente justificada.
+- Listagens operacionais devem possuir `limit` explícito e, quando ultrapassarem esse limite, evoluir para paginação/cursor em vez de aumentar indefinidamente o teto.
+- Seletores, autocomplete e vínculos não podem carregar collections inteiras apenas para preencher `<select>`; preferir leitura sob demanda, busca prefixada/indexada ou limites pequenos e documentados.
+- Não executar leituras de dados auxiliares que a tela ainda não precisa. Dados de detalhe devem, preferencialmente, ser carregados ao abrir/selecionar o item.
+- Requisições concorrentes idênticas devem ser deduplicadas.
+- Leituras estáveis podem usar cache curto em memória por usuário/aba; dados pessoais/operacionais não devem ser persistidos em `localStorage` como mecanismo de cache.
+- Todo cache deve ter TTL e invalidação explícita após mutações relacionadas. Cache nunca substitui Firestore Rules nem vira fonte canônica.
+- Chaves de cache que armazenem dados protegidos devem incluir o `uid` quando houver risco de troca de usuário na mesma aba.
+- `refresh()` não deve recarregar referências estáveis ou collections auxiliares por padrão; separar refresh do dado principal da atualização de metadados/referências.
+- Mover card, alterar status, editar um item ou aplicar filtro local não deve disparar releitura completa da tela quando o estado local já permite refletir a mutação com segurança.
+- Evitar `onSnapshot` por padrão. Listener realtime só é permitido quando a necessidade de tempo real for requisito explícito; deve possuir unsubscribe no teardown e escopo/query limitados.
+- Proibido instalar listeners Firestore em `render()`/rerender sem teardown garantido.
+- Filtros client-side não justificam carregar milhares de documentos. Quando a cardinalidade crescer, migrar o filtro para query/index Firestore.
+- Dashboard deve preferir documentos agregados/contadores ou queries específicas; não ler collections completas para calcular KPIs no browser.
+- Dados de sessão, perfil e permissões devem ser reaproveitados durante o ciclo autenticado e invalidados somente quando alterados.
+
+### 18.3. Orçamento de leitura por tela
+
+Como padrão de projeto, adotar orçamento conservador:
+
+- bootstrap de sessão: apenas leituras essenciais para autenticação/autorização;
+- tela simples/detalhe: idealmente 1–3 queries e poucas dezenas de documentos;
+- listagem operacional inicial: alvo de até 100–200 documentos, com paginação para crescimento;
+- dados auxiliares/referências: limites independentes e cache maior que o dado transacional;
+- auditoria/histórico: sempre limitada e ordenada; nunca varrer todo o histórico na abertura;
+- qualquer tela que possa ultrapassar aproximadamente 500 leituras na primeira abertura precisa de justificativa arquitetural explícita e plano de redução antes de ser aceita.
+
+Esses números são guardrails, não autorização para consumir até o teto. A regra é sempre buscar somente o necessário.
+
+### 18.4. Estratégia de cache padrão
+
+O utilitário compartilhado `src/core/read-cache.js` deve ser preferido para leituras repetidas no cliente.
+
+Padrão esperado:
+
+- TTL curto (30–60 s) para listas transacionais que mudam com frequência;
+- TTL moderado (5–10 min) para catálogos/referências relativamente estáveis;
+- deduplicação de chamadas simultâneas pela mesma chave;
+- invalidação após create/update/delete/status que afete o dado;
+- possibilidade de `force` somente para refresh explícito/relevante;
+- nenhuma persistência de PII em storage como efeito colateral do cache.
+
+### 18.5. Auditoria de performance por funcionalidade atual
+
+Manter as seguintes premissas enquanto a arquitetura atual existir:
+
+- **Dashboard:** não introduzir leitura de collections completas para KPIs.
+- **Pendências:** lista principal limitada; referências auxiliares limitadas e cacheadas; evitar recarregar `users/properties/clients/leases/leaseTerminations` em toda atualização de card.
+- **Uploads:** parsing é local; importação escreve em batch; não fazer leitura prévia de toda collection para deduplicação quando IDs determinísticos já resolvem upsert.
+- **Rescisões — calcular:** opções de contratos/imóveis devem ser limitadas/cacheadas; evitar a dupla leitura causada por render + binding de persistência; quando a base crescer, evoluir para busca por contrato/imóvel e carregamento do imóvel selecionado sob demanda.
+- **Rescisões — consultar:** histórico limitado/ordenado e cacheado; editar/excluir/status deve invalidar apenas as chaves afetadas.
+- **Usuários:** lista limitada/cacheada; permissões de um usuário são carregadas quando necessárias, não para todos os usuários antecipadamente.
+- **Auditoria:** histórico sempre ordenado por data e limitado; paginação/cursor ao crescer.
+- **Meu perfil:** reutilizar o perfil já carregado quando possível; invalidação após edição.
+- **Sessão/ACL:** evitar N leituras de documentos ausentes por módulo; preferir query única das permissões do usuário quando compatível com as Rules.
+
+### 18.6. Critério bloqueante de review
+
+Uma mudança deve ser rejeitada até correção se introduzir qualquer um dos seguintes padrões sem justificativa formal:
+
+- collection inteira carregada para dropdown/autocomplete;
+- query sem limite em tela navegável;
+- reload total após mutação local simples;
+- múltiplas chamadas equivalentes na mesma abertura;
+- listener realtime sem unsubscribe;
+- cache sem invalidação;
+- cache compartilhado entre usuários sem chave de usuário;
+- KPI calculado varrendo collection grande no cliente;
+- paginação removida para “facilitar” filtro client-side.
+
+Cache de autorização e cache de leitura não podem se tornar fonte de verdade: Rules/Functions continuam obrigatórias.
 
 ## 19. Testes
 
@@ -594,9 +670,11 @@ Antes de concluir, responder objetivamente:
 13. Form controls têm accessible name e ARIA possui hierarquia válida?
 14. Console nominal está sem `console.error`/`pageerror`?
 15. Sessão/permissões estão sendo recarregadas sem necessidade?
-16. Um teste de regressão cobre o bug corrigido?
-17. Documentação/ROADMAP precisam ser atualizados?
-18. A nova feature reutiliza autenticação, ACL, auditoria e Design System existentes em vez de duplicá-los?
+16. As queries Firestore da tela têm limite/paginação e orçamento de leitura explícitos?
+17. Leituras repetidas foram deduplicadas/cacheadas com invalidação correta?
+18. Um teste de regressão cobre o bug corrigido?
+19. Documentação/ROADMAP precisam ser atualizados?
+20. A nova feature reutiliza autenticação, ACL, auditoria e Design System existentes em vez de duplicá-los?
 
 ## 28. QA de produção
 
