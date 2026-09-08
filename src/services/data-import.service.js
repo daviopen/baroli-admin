@@ -10,7 +10,12 @@ function clean(value) {
 
 function numberValue(value) {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
-  const normalized = clean(value).replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '');
+  const raw = clean(value).replace(/R\$|\s/g, '');
+  if (!raw) return 0;
+  let normalized = raw;
+  if (raw.includes(',') && raw.includes('.')) normalized = raw.replace(/\./g, '').replace(',', '.');
+  else if (raw.includes(',')) normalized = raw.replace(',', '.');
+  normalized = normalized.replace(/[^0-9.-]/g, '');
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
 }
