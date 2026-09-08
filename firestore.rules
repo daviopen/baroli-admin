@@ -13,9 +13,9 @@ service cloud.firestore {
       return activeUser() && permissionId in [
         request.auth.uid + '__dashboard', request.auth.uid + '__users', request.auth.uid + '__permissions',
         request.auth.uid + '__audit', request.auth.uid + '__clients', request.auth.uid + '__owners',
-        request.auth.uid + '__tenants', request.auth.uid + '__properties', request.auth.uid + '__leases',
-        request.auth.uid + '__inspections', request.auth.uid + '__maintenance', request.auth.uid + '__finance',
-        request.auth.uid + '__documents'
+        request.auth.uid + '__tenants', request.auth.uid + '__properties', request.auth.uid + '__lease-termination',
+        request.auth.uid + '__leases', request.auth.uid + '__inspections', request.auth.uid + '__maintenance',
+        request.auth.uid + '__finance', request.auth.uid + '__documents'
       ];
     }
     function explicitPermission(moduleName, acceptedLevels) {
@@ -81,7 +81,7 @@ service cloud.firestore {
     function validPermissionDocument(permissionId) {
       return isSuperAdmin()
         && request.resource.data.userId is string
-        && request.resource.data.module in ['dashboard', 'users', 'permissions', 'audit', 'clients', 'owners', 'tenants', 'properties', 'leases', 'inspections', 'maintenance', 'finance', 'documents']
+        && request.resource.data.module in ['dashboard', 'users', 'permissions', 'audit', 'clients', 'owners', 'tenants', 'properties', 'lease-termination', 'leases', 'inspections', 'maintenance', 'finance', 'documents']
         && request.resource.data.level in ['READ', 'EDIT']
         && permissionId == request.resource.data.userId + '__' + request.resource.data.module
         && request.resource.data.updatedBy == request.auth.uid
