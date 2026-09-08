@@ -124,6 +124,7 @@ service cloud.firestore {
     }
     match /clients/{clientId} { allow read: if canRead('clients'); allow create, update: if canEdit('clients'); allow delete: if false; }
     match /properties/{propertyId} { allow read: if canRead('properties'); allow create, update: if canEdit('properties'); allow delete: if false; }
+    match /leases/{leaseId} { allow read: if canRead('leases') || canRead('lease-termination'); allow create, update: if canEdit('leases') || canEdit('clients'); allow delete: if false; }
     match /settings/{documentId} { allow read: if activeUser(); allow create, update, delete: if false; }
     match /{document=**} { allow read, write: if false; }
   }
