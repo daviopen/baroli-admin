@@ -8,7 +8,14 @@ import {
   getUserProfileDefinition,
   normalizeUserProfile
 } from '../features/permissions/permission-levels.js';
-import { callAdminFunction, getUserPermissions, listUsers } from '../repositories/admin.repository.js';
+import {
+  createManagedUserRecords,
+  getUserPermissions,
+  listUsers,
+  setManagedUserActiveRecord,
+  updateManagedUserRecords
+} from '../repositories/admin.repository.js';
+import { getFirebaseServices } from './firebase.service.js';
 
 function normalizeText(value) {
   return String(value || '').trim().toLocaleLowerCase('pt-BR');
@@ -33,6 +40,23 @@ function inferProfileType(user = {}) {
   if (user.role === 'SUPER_ADMIN') return 'ADM_SUPER';
   if (user.role === 'ADMIN') return 'GESTAO';
   return 'CORRETOR';
+}
+
+function actorFromSession(session) {
+  return {
+    uid: session?.authUser?.uid || session?.profile?.uid || session?.profile?.id,
+    email: session?.profile?.email || session?.authUser?.email || null,
+    name: session?.profile?.name || session?.authUser?.displayName || null
+  };
+}
+
+function cryptoRandom() {
+  if (globalThis.crypto?.getRandomValues) {
+    const bytes = new Uint32Array(4);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (value) => value.toString(36)).join('');
+  }
+  return `${Date.now()}${Math.random().toString(36).slice(2)}`;
 }
 
 export function getUserManagementCapabilities(session) {
@@ -82,28 +106,45 @@ export async function createManagedUser(input, session) {
 
   const name = validateName(input.name);
   const email = validateEmail(input.email);
-  const request = { name, email };
+  const profileType = capabilities.canManagePermissions ? normalizeUserProfile(input.profileType) : 'CORRETOR';
+  const role = getUserProfileDefinition(profileType).systemRole;
+  const permissionLevels = buildPermissionPayload(getProfilePermissionLevels(profileType));
+  const actor = actorFromSession(session);
 
-  if (capabilities.canManagePermissions) {
-    const profileType = normalizeUserProfile(input.profileType);
-    request.profileType = profileType;
-    request.role = getUserProfileDefinition(profileType).systemRole;
-    request.permissions = buildPermissionPayload(
-      input.permissionLevels || getProfilePermissionLevels(profileType)
-    );
-  }
+  const { app, appSdk, authSdk } = await getFirebaseServices();
+  const appName = `baroli-user-provision-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const secondaryApp = appSdk.initializeApp(app.options, appName);
+  const secondaryAuth = authSdk.getAuth(secondaryApp);
+  let credential = null;
+  let profileCreated = false;
 
-  const created = await callAdminFunction('adminCreateUser', request);
-  let passwordResetSent = false;
-  let passwordResetError = null;
   try {
-    await sendPasswordReset(email);
-    passwordResetSent = true;
-  } catch (error) {
-    passwordResetError = error?.message || 'Não foi possível solicitar o e-mail de definição de senha.';
-  }
+    const temporaryPassword = `${cryptoRandom()}aA1!`;
+    credential = await authSdk.createUserWithEmailAndPassword(secondaryAuth, email, temporaryPassword);
+    const uid = credential.user.uid;
+    await createManagedUserRecords({ uid, name, email, role, profileType, permissionLevels, actor });
+    profileCreated = true;
 
-  return { ...created, passwordResetSent, passwordResetError };
+    let passwordResetSent = false;
+    let passwordResetError = null;
+    try {
+      await sendPasswordReset(email);
+      passwordResetSent = true;
+    } catch (error) {
+      passwordResetError = error?.message || 'Não foi possível solicitar o e-mail de definição de senha.';
+    }
+
+    return { uid, passwordResetSent, passwordResetError };
+  } catch (error) {
+    if (!profileCreated && credential?.user && typeof credential.user.delete === 'function') {
+      try { await credential.user.delete(); } catch { /* rollback best-effort */ }
+    }
+    if (error?.code === 'auth/email-already-in-use') throw new Error('Já existe um usuário com este e-mail.');
+    throw error;
+  } finally {
+    try { await authSdk.signOut(secondaryAuth); } catch { /* noop */ }
+    await appSdk.deleteApp(secondaryApp).catch(() => undefined);
+  }
 }
 
 export async function updateManagedUser(userId, input, session) {
@@ -111,29 +152,26 @@ export async function updateManagedUser(userId, input, session) {
   if (!capabilities.canUpdate) throw new Error('Você não possui permissão para editar usuários.');
   if (!userId) throw new Error('Usuário inválido.');
 
-  const request = {
-    userId,
-    name: validateName(input.name),
-    active: input.active !== false
-  };
+  const name = validateName(input.name);
+  const profileType = capabilities.canManagePermissions ? normalizeUserProfile(input.profileType) : 'CORRETOR';
+  const role = getUserProfileDefinition(profileType).systemRole;
+  const permissionLevels = buildPermissionPayload(getProfilePermissionLevels(profileType));
 
-  if (capabilities.canManagePermissions) {
-    const profileType = normalizeUserProfile(input.profileType);
-    request.profileType = profileType;
-    request.role = getUserProfileDefinition(profileType).systemRole;
-    request.permissions = buildPermissionPayload(
-      input.permissionLevels || getProfilePermissionLevels(profileType)
-    );
-  }
-
-  await callAdminFunction('adminUpdateUser', request);
+  await updateManagedUserRecords(userId, {
+    name,
+    active: input.active !== false,
+    role,
+    profileType,
+    permissionLevels,
+    actor: actorFromSession(session)
+  });
   return { ok: true };
 }
 
 export async function setManagedUserActive(userId, active, session) {
   const capabilities = getUserManagementCapabilities(session);
   if (!capabilities.canUpdate) throw new Error('Você não possui permissão para alterar o status de usuários.');
-  return callAdminFunction('adminUpdateUser', { userId, active: Boolean(active) });
+  return setManagedUserActiveRecord(userId, Boolean(active), actorFromSession(session));
 }
 
 export async function requestManagedUserPasswordReset(email, session) {
